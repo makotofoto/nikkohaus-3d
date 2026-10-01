@@ -714,19 +714,25 @@ document.getElementById('mTour').onclick = () => { tourT = 0.3; snap = true; set
 
 const el = renderer.domElement;
 let drag = null;
-// 手機上光線面板打開時：點一下畫面空白處就收起面板（拖曳還是照常轉視角）
-const panelOpen = () => matchMedia('(max-width:700px)').matches && !document.body.classList.contains('panelClosed');
-let tap = null;
-el.addEventListener('pointerdown', e => { tap = panelOpen() ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; });
-el.addEventListener('pointerup', e => {
-  if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500) document.body.classList.add('panelClosed');
-  tap = null;
-});
+// 手機：點一下畫面空白處就開／關光線面板；拖曳照常轉視角
+// 導覽中要真的拖動才接手變成自由走，單純點一下不會打斷導覽
+const narrow = () => matchMedia('(max-width:700px)').matches;
+let tap = null, tourPress = null;
 el.addEventListener('pointerdown', e => {
-  if (mode === 'tour' && !tap) setMode('walk');
+  tap = { x: e.clientX, y: e.clientY, t: performance.now() };
+  if (mode === 'tour') tourPress = { id: e.pointerId, x: e.clientX, y: e.clientY };
   if (mode === 'walk') { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); }
 });
+el.addEventListener('pointerup', e => {
+  if (tap && narrow() && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500)
+    document.body.classList.toggle('panelClosed');
+  tap = tourPress = null;
+});
 el.addEventListener('pointermove', e => {
+  if (tourPress && e.pointerId === tourPress.id && Math.hypot(e.clientX - tourPress.x, e.clientY - tourPress.y) >= 10) {
+    setMode('walk'); tourPress = null;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId);
+  }
   if (!drag || e.pointerId !== drag.id) return;
   const k = e.pointerType === 'touch' ? 0.006 : 0.004;
   yaw -= (e.clientX - drag.x) * k; pitch = Math.max(-1.3, Math.min(1.3, pitch - (e.clientY - drag.y) * k));
