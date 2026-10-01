@@ -24,7 +24,7 @@
   body.walk #stick { display:block; }
   /* 光線面板 */
   #panel { position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); width:300px; background:var(--panel); border:1px solid var(--line); border-radius:14px;
-    padding:14px 16px 12px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); font-size:12px; box-shadow:0 6px 24px rgba(0,0,0,.08); }
+    padding:14px 16px 12px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); font-size:12px; box-shadow:0 6px 24px rgba(0,0,0,.08); max-height:calc(100% - 110px); overflow:auto; }
   #panel h3 { margin:0 0 10px; font-size:13px; font-weight:600; letter-spacing:.06em; display:flex; justify-content:space-between; align-items:center; }
   #panel h3 button { padding:3px 10px; font-size:12px; }
   .row { margin:9px 0; }
