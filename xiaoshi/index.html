@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>日光小室 3D 看棚</title>
+<style>
+  :root { --bg:#ecebe8; --fg:#2a2826; --dim:rgba(42,40,38,.6); --panel:rgba(255,255,255,.74); --line:rgba(0,0,0,.1); --acc:#e0a63a; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
+    font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif; -webkit-user-select:none; user-select:none; }
+  canvas { display:block; touch-action:none; position:fixed; inset:0; }
+  #hud { position:fixed; left:16px; top:calc(16px + env(safe-area-inset-top, 0px)); right:16px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; gap:12px; }
+  #title { font-size:15px; letter-spacing:.08em; font-weight:600; }
+  #title small { display:block; color:var(--dim); font-size:12px; margin-top:4px; letter-spacing:0; font-weight:400; }
+  .btns { display:flex; gap:8px; pointer-events:auto; flex-wrap:wrap; justify-content:flex-end; }
+  button { background:var(--panel); color:var(--fg); border:1px solid rgba(0,0,0,.12); border-radius:999px;
+    padding:8px 14px; font:inherit; font-size:13px; cursor:pointer; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  button.on { background:var(--fg); color:#fff; }
+  #help { position:fixed; left:16px; bottom:20px; pointer-events:none; background:var(--panel); padding:8px 14px; border-radius:10px;
+    font-size:12px; color:var(--dim); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); white-space:nowrap; transition:opacity .6s; }
+  #stick { position:fixed; left:28px; bottom:calc(28px + env(safe-area-inset-bottom, 0px)); width:110px; height:110px; border-radius:50%; border:1px solid rgba(0,0,0,.15);
+    background:rgba(255,255,255,.35); display:none; touch-action:none; }
+  #knob { position:absolute; left:35px; top:35px; width:40px; height:40px; border-radius:50%; background:rgba(42,40,38,.6); }
+  body.walk #stick { display:block; }
+  /* 光線面板 */
+  #panel { position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); width:300px; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px 12px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); font-size:12px; box-shadow:0 6px 24px rgba(0,0,0,.08); }
+  #panel h3 { margin:0 0 10px; font-size:13px; font-weight:600; letter-spacing:.06em; display:flex; justify-content:space-between; align-items:center; }
+  #panel h3 button { padding:3px 10px; font-size:12px; }
+  .row { margin:9px 0; }
+  .row label { display:flex; justify-content:space-between; color:var(--dim); margin-bottom:4px; }
+  .row label b { color:var(--fg); font-weight:500; font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; margin:0; accent-color:var(--acc); }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+  .chips button { padding:3px 9px; font-size:11px; }
+  .seg { display:flex; gap:5px; }
+  .seg button { flex:1; padding:5px 0; font-size:12px; }
+  #info { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); color:var(--dim); line-height:1.6; font-variant-numeric:tabular-nums; }
+  #info .hit { color:#b57a10; font-weight:600; }
+  #panelBtn { display:none; }
+  @media (pointer:fine) { body.walk #stick { display:none; } .touch { display:none; } }
+  @media (pointer:coarse) { .desk { display:none; } }
+  @media (max-width:700px) {
+    #panel { left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); width:auto; max-height:62vh; overflow:auto; }
+    body.panelClosed #panel { display:none; }
+    #panelBtn { display:inline-block; }
+    #help { left:50%; transform:translateX(-50%); bottom:auto; top:calc(96px + env(safe-area-inset-top, 0px)); }
+    body.walk:not(.panelClosed) #stick { display:none; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud">
+  <div id="title">nikkohaus<small>日光小室 · 窗朝南 · 500 × 1000 cm · 高 330 cm</small></div>
+  <div class="btns">
+    <button id="mOrbit" class="on">俯瞰</button>
+    <button id="mWalk">走進去</button>
+    <button id="mTour">導覽</button>
+    <button id="panelBtn">☀ 光線</button>
+  </div>
+</div>
+<div id="help">
+  <span id="hOrbit"><span class="desk">拖曳旋轉 · 滾輪縮放 · 右鍵平移</span><span class="touch">單指旋轉 · 雙指縮放</span></span>
+  <span id="hWalk" hidden><span class="desk">拖曳轉頭 · W A S D／方向鍵移動</span><span class="touch">右邊拖曳轉頭 · 左下搖桿移動</span></span>
+</div>
+<div id="stick"><div id="knob"></div></div>
+<div id="panel">
+  <h3>光線 <button id="panelClose" class="touch">收起</button></h3>
+  <div class="row">
+    <label>日期 <b id="vDate"></b></label>
+    <input id="date" type="range" min="1" max="365" step="1">
+    <div class="chips">
+      <button data-doy="80">春分</button><button data-doy="172">夏至</button><button data-doy="266">秋分</button><button data-doy="356">冬至</button><button data-doy="today">今天</button>
+    </div>
+  </div>
+  <div class="row">
+    <label>時間 <b id="vTime"></b></label>
+    <input id="time" type="range" min="4.5" max="20" step="0.0833">
+    <div class="chips"><button id="play">▶ 播放一天</button><button id="now">現在</button></div>
+  </div>
+  <div class="row">
+    <label>天氣</label>
+    <div class="seg" id="weather"><button data-w="clear">晴</button><button data-w="haze">薄雲</button><button data-w="overcast">陰天</button></div>
+  </div>
+  <div class="row">
+    <label>窗戶朝向 <b id="vFace"></b></label>
+    <input id="face" type="range" min="0" max="355" step="5">
+  </div>
+  <div class="row">
+    <label>曝光補償 <b id="vEv"></b></label>
+    <input id="ev" type="range" min="-2" max="2" step="0.333">
+  </div>
+  <div class="row">
+    <label>室內燈</label>
+    <div class="seg" id="lamps"><button data-l="auto">自動</button><button data-l="on">開</button><button data-l="off">關</button></div>
+  </div>
+  <div id="info"></div>
+</div>
+<script type="module" src="studio.js"></script>
+</body>
+</html>
