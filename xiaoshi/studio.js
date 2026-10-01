@@ -714,8 +714,16 @@ document.getElementById('mTour').onclick = () => { tourT = 0.3; snap = true; set
 
 const el = renderer.domElement;
 let drag = null;
+// 手機上光線面板打開時：點一下畫面空白處就收起面板（拖曳還是照常轉視角）
+const panelOpen = () => matchMedia('(max-width:700px)').matches && !document.body.classList.contains('panelClosed');
+let tap = null;
+el.addEventListener('pointerdown', e => { tap = panelOpen() ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; });
+el.addEventListener('pointerup', e => {
+  if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500) document.body.classList.add('panelClosed');
+  tap = null;
+});
 el.addEventListener('pointerdown', e => {
-  if (mode === 'tour') setMode('walk');
+  if (mode === 'tour' && !tap) setMode('walk');
   if (mode === 'walk') { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); }
 });
 el.addEventListener('pointermove', e => {
