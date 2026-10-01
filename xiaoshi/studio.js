@@ -487,7 +487,22 @@ function bureau() {
   B(w - 0.044, 0.018, dUp + 0.02, teak, 0, 1.17, (dUp + 0.02) / 2, g);
   B(w - 0.12, 0.26, 0.01, M('#fff', { map: tambour, roughness: 0.5 }), 0.03, chestTop + 0.03, dUp - 0.06, g);
   // 擺飾：書、黃色檯燈、鐵絲籃、杯子
-  B(0.16, 0.05, 0.12, M('#2e2d2b'), -0.22, 1.448, 0.12, g); B(0.18, 0.03, 0.12, M('#6f8a7a'), 0.0, 1.448, 0.12, g);
+  // 一排排直立的書（最後一本斜靠），x0～x1 是這排的範圍，maxH 是層板間距
+  const bookCols = ['#7d2e2e', '#2f4a5e', '#d8cfbf', '#4d5a3a', '#b9893f', '#30302e', '#8c6a4f', '#c4b59a', '#5b6f7f'];
+  const bookRow = (x0, x1, y, maxH) => {
+    let x = x0;
+    while (x < x1 - 0.03) {
+      const bw = 0.022 + rnd() * 0.022, bh = maxH * (0.72 + rnd() * 0.22), bd = 0.15 + rnd() * 0.04;
+      B(bw, bh, bd, M(bookCols[(rnd() * bookCols.length) | 0], { roughness: 0.8 }), x + bw / 2, y, 0.02 + bd / 2, g);
+      x += bw + 0.002;
+    }
+    const lean = B(0.026, maxH * 0.8, 0.17, M(bookCols[(rnd() * bookCols.length) | 0], { roughness: 0.8 }), x + 0.05, y, 0.105, g);
+    lean.rotation.z = -0.32; lean.position.x = x + 0.045;
+  };
+  bookRow(-0.25, 0.32, 1.688, 0.2);   // 最上層（左邊留給小盆栽）
+  bookRow(-0.4, 0.12, 1.448, 0.2);     // 第二層
+  B(0.2, 0.035, 0.15, M('#2e2d2b'), 0.27, 1.448, 0.1, g); B(0.18, 0.03, 0.14, M('#6f8a7a'), 0.27, 1.483, 0.1, g); B(0.16, 0.028, 0.13, M('#d8cfbf'), 0.27, 1.513, 0.1, g);
+  bookRow(-0.14, 0.07, 1.188, 0.2);    // 第三層，夾在鐵絲籃和黃色檯燈中間
   CY(0.045, 0.045, 0.1, M('#d9c873', { roughness: 0.6 }), 0.22, 1.188, 0.12, g, 16);
   CY(0.06, 0.06, 0.12, M('#e3d27f', { roughness: 0.6 }), 0.22, 1.29, 0.12, g, 16);
   CY(0.07, 0.06, 0.08, M('#3a3a3a', { wireframe: true }), -0.25, 1.188, 0.13, g, 10);
