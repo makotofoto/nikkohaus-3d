@@ -129,6 +129,22 @@ function place(g, X, Z, rot = 0, collide = true) {
   if (collide) { g.updateMatrixWorld(true); colliders.push(new THREE.Box3().setFromObject(g)); }
   return g;
 }
+// 可以移動、收起的家具道具。id 不要改（分享連結靠它）；def 是官方擺法（公分、度）
+// kind：rug 地毯（可以壓在下面）、seat 椅凳、table 桌子（椅凳可以塞進桌下）
+const items = [];
+let editing = false;
+function item(id, name, g, X, Z, rot = 0, kind = '', stored = false) {
+  g.updateMatrixWorld(true);
+  // 還沒擺之前量外框；盆栽只算花盆（葉子可以伸到別的東西上面）
+  const f = g.userData.foot;
+  const local = f ? new THREE.Box3(new THREE.Vector3(-f, 0, -f), new THREE.Vector3(f, 1, f)) : new THREE.Box3().setFromObject(g);
+  place(g, X, Z, rot, false);
+  const it = { id, name, g, kind, local, def: { X, Z, r: Math.round(rot * 180 / Math.PI), stored } };
+  Object.assign(it, it.def);
+  g.traverse(o => o.userData.item = it);
+  g.visible = !stored;
+  items.push(it); return it;
+}
 const G = () => new THREE.Group();
 
 // ---------- 房間 ----------
@@ -305,6 +321,7 @@ function kitchen() {
 function plant(kind, s = 1, potMat = potWhite) {
   const g = G();
   const potH = kind === 'fig' ? 0.34 : 0.24;
+  g.userData.foot = 0.14 * s;
   CY(0.13 * s, 0.1 * s, potH * s, potMat, 0, 0, 0, g);
   if (kind === 'bush') {
     const geo = new THREE.SphereGeometry(0.07 * s, 7, 5);
@@ -340,13 +357,13 @@ function plant(kind, s = 1, potMat = potWhite) {
   const g = G(); B(0.5, 0.85, 0.55, wallWhite, 0, 0, 0, g);
   CY(0.16, 0.13, 0.08, M('#b98f5c'), 0, 0.85, 0, g);
   place(g, 233 + 30 + 25, -AD + 27.5);
-  place(plant('cactus', 1), 300, 18);
+  item('cactus', '仙人掌', plant('cactus', 1), 300, 18);
   const st = G();
   for (const [x, z] of [[-0.17, -0.12], [0.17, -0.12], [-0.17, 0.12], [0.17, 0.12]]) {
     const leg = B(0.03, 0.6, 0.03, M('#c9a46a'), x, 0, z, st); leg.rotation.x = z > 0 ? -0.08 : 0.08;
   }
   B(0.4, 0.03, 0.32, M('#c9a46a'), 0, 0.58, 0, st); B(0.4, 0.025, 0.06, M('#c9a46a'), 0, 0.28, 0.08, st);
-  place(st, 485, 30);
+  item('stepStool', '木梯凳', st, 485, 30, 0, 'seat');
 }
 // 雙開門、門墊、白門、鞋櫃
 {
@@ -366,7 +383,7 @@ function plant(kind, s = 1, potMat = potWhite) {
   add(mat, xc, 0.006, PZ(45));
   const cub = G(); RB(0.42, 1.1, 0.32, 0.005, whiteCab, 0, 0, 0, cub);
   for (let i = 0; i < 4; i++) B(0.36, 0.2, 0.01, M(['#355d8a', '#9a3b3b', '#d8d3c8', '#36454f'][i]), 0, 0.1 + i * 0.25, 0.155, cub);
-  place(cub, 960, 25);
+  item('shoeRack', '白色鞋櫃', cub, 960, 25);
 }
 
 // ---------- 窗邊：沙發、灰地毯、角落盆栽 ----------
@@ -382,18 +399,18 @@ function sofa() {
   const p2 = RB(0.4, 0.4, 0.12, 0.06, M('#fff', { map: checks, roughness: 1 }), 0.55, 0.52, -0.06, g); p2.rotation.set(-0.25, -0.15, -0.08);
   return g;
 }
-place(sofa(), 58, 285, Math.PI / 2);
+item('sofa', '沙發', sofa(), 58, 285, Math.PI / 2);
 {
-  const r = new THREE.Mesh(new THREE.BoxGeometry(cm(203), 0.012, cm(303)), M('#fff', { map: greyRug, roughness: 1 }));
-  add(r, PX(205), 0.006, PZ(280));
+  const r = G(); add(new THREE.Mesh(new THREE.BoxGeometry(cm(203), 0.012, cm(303)), M('#fff', { map: greyRug, roughness: 1 })), 0, 0.006, 0, r);
+  item('rugGrey', '灰色地毯', r, 205, 280, 0, 'rug');
 }
-place(plant('bush', 1.3), 30, 465);
-place(plant('bush', 1.1), 30, 40);
+item('plantWin', '盆栽（窗邊）', plant('bush', 1.3), 30, 465);
+item('plantKit', '盆栽（廚房旁）', plant('bush', 1.1), 30, 40);
 
 // ---------- 中間：條紋地毯、餐桌、四張椅子 ----------
 {
-  const r = new THREE.Mesh(new THREE.BoxGeometry(cm(274), 0.012, cm(211)), M('#fff', { map: stripes, roughness: 1 }));
-  add(r, PX(500), 0.006, PZ(254));
+  const r = G(); add(new THREE.Mesh(new THREE.BoxGeometry(cm(274), 0.012, cm(211)), M('#fff', { map: stripes, roughness: 1 })), 0, 0.006, 0, r);
+  item('rugStripe', '條紋地毯', r, 500, 254, 0, 'rug');
 }
 function diningTable() {
   const g = G(), w = 1.6, d = 0.95, r = 0.38;
@@ -426,11 +443,11 @@ function chair(style, seatColor) {
   }
   return g;
 }
-place(diningTable(), 515, 255);
-place(chair('up', '#c3a12b'), 470, 180, 0);
-place(chair('spindle', '#3d5878'), 560, 180, 0);
-place(chair('spindle', '#7a4e2d'), 470, 332, Math.PI);
-place(chair('up', '#c3a12b'), 560, 332, Math.PI);
+item('table', '餐桌', diningTable(), 515, 255, 0, 'table');
+item('chair1', '黃色椅子', chair('up', '#c3a12b'), 470, 180, 0, 'seat');
+item('chair2', '藍椅墊木椅', chair('spindle', '#3d5878'), 560, 180, 0, 'seat');
+item('chair3', '木椅', chair('spindle', '#7a4e2d'), 470, 332, Math.PI, 'seat');
+item('chair4', '黃色椅子 2', chair('up', '#c3a12b'), 560, 332, Math.PI, 'seat');
 
 // ---------- 書櫃那面牆：矮櫃、琴葉榕、書櫃、角落書桌組 ----------
 function sideboard() {
@@ -512,9 +529,9 @@ function bureau() {
   CY(0.03, 0.025, 0.04, potWhite, -0.32, 1.678, 0.12, g, 10);
   return g;
 }
-place(sideboard(), 195, 475, Math.PI);
-place(plant('fig', 1.15), 360, 465);
-place(bureau(), 528, 499, Math.PI);
+item('sideboard', '矮櫃', sideboard(), 195, 475, Math.PI);
+item('fig', '琴葉榕', plant('fig', 1.15), 360, 465);
+item('bureau', '柚木書桌櫃', bureau(), 528, 499, Math.PI);
 {
   // 角落：老式斜面書桌、小圓几、吧檯椅、盆栽
   const desk = G();
@@ -522,16 +539,39 @@ place(bureau(), 528, 499, Math.PI);
   B(1.1, 0.3, 0.48, M('#9a6a3c', { roughness: 0.5 }), 0, 0.45, 0, desk);
   const top = B(1.12, 0.03, 0.5, M('#b07a45', { roughness: 0.45 }), 0, 0.78, 0.0, desk); top.rotation.x = 0.12;
   const pp = plant('bush', 0.6, terracotta); scene.remove(pp); pp.position.set(-0.35, 0.8, -0.12); desk.add(pp);
-  place(desk, 755, 470, Math.PI);
+  item('desk', '斜面書桌', desk, 755, 470, Math.PI, 'table');
   const rt = G(); CY(0.25, 0.25, 0.03, wood, 0, 0.55, 0, rt);
   for (let i = 0; i < 3; i++) { const l = CY(0.014, 0.014, 0.56, wood, Math.cos(i * 2.1) * 0.13, 0, Math.sin(i * 2.1) * 0.13, rt, 8); l.rotation.z = Math.cos(i * 2.1) * 0.15; }
   const rp = plant('bush', 0.6); scene.remove(rp); rp.position.set(0, 0.58, 0); rt.add(rp);
-  place(rt, 650, 455);
+  item('sideTable', '小圓几', rt, 650, 455, 0, 'table');
   const st = G(); CY(0.17, 0.17, 0.04, wood, 0, 0.68, 0, st);
   for (let i = 0; i < 3; i++) { const l = CY(0.012, 0.012, 0.7, black, Math.cos(i * 2.1) * 0.13, 0, Math.sin(i * 2.1) * 0.13, st, 8); l.rotation.z = Math.cos(i * 2.1) * 0.15; }
   add(new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.008, 6, 24), black), 0, 0.25, 0, st).rotation.x = Math.PI / 2;
-  place(st, 900, 420);
-  place(plant('bush', 1.2), 860, 470);
+  item('barStool', '吧檯椅', st, 900, 420, 0, 'seat');
+  item('plantCorner', '盆栽（角落）', plant('bush', 1.2), 860, 470);
+}
+
+// ---------- 倉庫裡的家具（一開始收著） ----------
+{
+  // 一體式單人床：97 × 195 cm，細木腳、床墊一體
+  const bed = G(), fabric = M('#ddd6c9', { roughness: 0.95 }), oak = M('#c9a679', { roughness: 0.5 });
+  for (const [x, z] of [[-.42, -.88], [.42, -.88], [-.42, .88], [.42, .88]]) CY(0.022, 0.018, 0.2, oak, x, 0, z, bed, 10);
+  RB(0.97, 0.26, 1.95, 0.05, fabric, 0, 0.18, 0, bed);
+  B(0.95, 0.008, 1.93, M('#cfc7b8', { roughness: 1 }), 0, 0.3, 0, bed);
+  RB(0.62, 0.1, 0.38, 0.05, M('#f6f4ef', { roughness: 1 }), 0, 0.44, -0.72, bed);
+  RB(0.99, 0.07, 0.6, 0.03, M('#c3c9cf', { roughness: 1 }), 0, 0.44, 0.62, bed);
+  item('bed', '一體式單人床', bed, 500, 250, 0, '', true);
+  // 懶骨頭：65 × 65 × 43 cm，深咖啡，上面坐出一個凹
+  const geo = new RoundedBoxGeometry(0.65, 0.43, 0.65, 5, 0.17);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), r = Math.hypot(x, z);
+    if (y > 0.1) pos.setY(i, y - 0.07 * Math.max(0, 1 - r / 0.3) * (y - 0.1) / 0.115);
+    pos.setX(i, x * (1 + 0.05 * (0.2 - y))); pos.setZ(i, z * (1 + 0.05 * (0.2 - y)));
+  }
+  geo.computeVertexNormals();
+  const bean = G(); add(new THREE.Mesh(geo, M('#4a3426', { roughness: 0.95 })), 0, 0.215, 0, bean);
+  item('beanbag', '深咖啡懶骨頭', bean, 500, 250, 0, 'seat', true);
 }
 
 // ---------- 盡頭：玻璃隔間＋門口 ----------
@@ -708,6 +748,7 @@ function setCut(on) {
   ceiling.visible = !on;
 }
 function setMode(m) {
+  if (m !== 'orbit' && editing) exitEdit();
   if (mode === 'tour' && m === 'walk') {
     pos.copy(camera.position); euler.setFromQuaternion(camera.quaternion, 'YXZ'); yaw = euler.y; pitch = euler.x;
   }
@@ -739,7 +780,7 @@ el.addEventListener('pointerdown', e => {
   if (mode === 'walk') { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); }
 });
 el.addEventListener('pointerup', e => {
-  if (tap && narrow() && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500)
+  if (tap && narrow() && !editing && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500)
     document.body.classList.toggle('panelClosed');
   tap = tourPress = null;
 });
@@ -789,6 +830,231 @@ function move(strafe, fwd) {
   pos.z = Math.max(-W / 2 + R, Math.min(W / 2 - R, pos.z));
 }
 
+// ---------- 擺設：移動、旋轉、收起、倉庫、分享擺法、拍照 ----------
+const KEY = 'nikko3d.xiaoshi.layout';
+const fixedColliders = colliders.slice(); // 廚房、矮台這些固定的
+const D = Math.PI / 180;
+function rebuildColliders() {
+  colliders.length = 0; colliders.push(...fixedColliders);
+  for (const it of items) if (!it.stored && it.kind !== 'rug') { it.g.updateMatrixWorld(true); colliders.push(new THREE.Box3().setFromObject(it.g)); }
+}
+function applyItem(it) {
+  it.g.position.set(PX(it.X), 0, PZ(it.Z)); it.g.rotation.y = it.r * D; it.g.visible = !it.stored;
+}
+// 家具在地上佔的範圍（公尺，外框；縮 1 cm 讓貼齊的東西不算撞到）
+function footprint(it, X, Z, r) {
+  const c = Math.cos(r * D), sn = Math.sin(r * D), b = it.local;
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const [lx, lz] of [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.min.x, b.max.z], [b.max.x, b.max.z]]) {
+    const x = PX(X) + lx * c + lz * sn, z = PZ(Z) - lx * sn + lz * c;
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
+  }
+  return { x0: x0 + 0.01, x1: x1 - 0.01, z0: z0 + 0.01, z1: z1 - 0.01 };
+}
+const ROOMS = [[-L / 2, L / 2, -W / 2, W / 2], [-L / 2, PX(AX), PZ(-AD), W / 2]]; // 主空間、含廚房凹槽那一段
+const inside = (f, [a, b, c, d]) => f.x0 >= a && f.x1 <= b && f.z0 >= c && f.z1 <= d;
+const hit = (f, g) => f.x0 < g.x1 && f.x1 > g.x0 && f.z0 < g.z1 && f.z1 > g.z0;
+const tucks = (a, b) => (a.kind === 'seat' && b.kind === 'table') || (a.kind === 'table' && b.kind === 'seat');
+function valid(it, X, Z, r) {
+  const f = footprint(it, X, Z, r);
+  if (!ROOMS.some(R => inside(f, R))) return false;
+  if (it.kind === 'rug') return true;
+  for (const b of fixedColliders) if (hit(f, { x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z })) return false;
+  for (const o of items) if (o !== it && !o.stored && o.kind !== 'rug' && !tucks(it, o) && hit(f, footprint(o, o.X, o.Z, o.r))) return false;
+  return true;
+}
+
+// 擺法 ↔ 文字：只記跟官方擺法不同的家具
+function layoutDiff() {
+  const d = {};
+  for (const it of items) if (it.X !== it.def.X || it.Z !== it.def.Z || it.r !== it.def.r || it.stored !== it.def.stored) d[it.id] = [it.X, it.Z, it.r, it.stored ? 1 : 0];
+  return d;
+}
+const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const dec = t => JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g, '+').replace(/_/g, '/')))));
+function applyLayout(d) {
+  for (const it of items) {
+    const v = d[it.id];
+    Object.assign(it, v ? { X: v[0], Z: v[1], r: v[2], stored: !!v[3] } : it.def);
+    applyItem(it);
+  }
+  rebuildColliders(); refreshStore();
+}
+function saveLayout() {
+  try { localStorage.setItem(KEY, JSON.stringify(layoutDiff())); } catch {}
+  if (location.hash.startsWith('#L=')) history.replaceState(null, '', location.pathname + location.search);
+}
+
+// ---------- 介面 ----------
+const toastEl = $('toast');
+function toast(html, ms = 2600) {
+  toastEl.innerHTML = html; toastEl.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.hidden = true, ms);
+}
+let selected = null, outline = null;
+function select(it) {
+  if (outline) { outline.parent.remove(outline); outline = null; }
+  selected = it;
+  $('selBar').hidden = !it;
+  if (!it) return;
+  $('selName').textContent = it.name;
+  // 選取框：貼在地上的四條橘線，跟著家具一起轉
+  const b = it.local, o = G(), m = new THREE.MeshBasicMaterial({ color: '#e0a63a' });
+  const w = b.max.x - b.min.x + 0.08, d = b.max.z - b.min.z + 0.08, cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, t = 0.025;
+  for (const [sx, sz, x, z] of [[w, t, cx, cz - d / 2], [w, t, cx, cz + d / 2], [t, d, cx - w / 2, cz], [t, d, cx + w / 2, cz]]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.006, sz), m); bar.position.set(x, 0.02, z); o.add(bar);
+  }
+  it.g.add(outline = o);
+}
+function refreshStore() {
+  const stored = items.filter(i => i.stored);
+  $('storeCount').textContent = stored.length ? `（${stored.length}）` : '';
+  $('storeItems').innerHTML = stored.length
+    ? stored.map(i => `<button data-id="${i.id}">${i.name}<span>拿出來</span></button>`).join('')
+    : '<p>倉庫是空的。選取家具後按「收起」就會放到這裡。</p>';
+  for (const b of $('storeItems').querySelectorAll('button')) b.onclick = () => takeOut(items.find(i => i.id === b.dataset.id));
+}
+function takeOut(it) {
+  // 從房間中間往外找一個放得下的空位
+  for (let rad = 0; rad <= 500; rad += 25) for (let a = 0; a < 360; a += rad ? 30 : 360) {
+    const X = Math.round(500 + rad * Math.cos(a * D)), Z = Math.round(250 + rad * Math.sin(a * D) * 0.5);
+    for (const r of [it.r, it.r + 90]) if (valid(it, X, Z, r % 360)) {
+      Object.assign(it, { X, Z, r: r % 360, stored: false }); applyItem(it);
+      rebuildColliders(); saveLayout(); refreshStore(); $('storeList').hidden = true; select(it);
+      toast(`已拿出「${it.name}」，拖曳到想放的位置`);
+      return;
+    }
+  }
+  toast('棚裡已經沒有空位放這個了，先收起一些家具');
+}
+function enterEdit() {
+  setMode('orbit'); editing = true; document.body.classList.add('edit');
+  $('mEdit').classList.add('on'); $('editBar').hidden = false;
+  document.getElementById('help').style.opacity = 1;
+}
+function exitEdit() {
+  editing = false; select(null); document.body.classList.remove('edit');
+  $('mEdit').classList.remove('on'); $('editBar').hidden = true; $('storeList').hidden = true;
+  rebuildColliders();
+}
+$('mEdit').onclick = () => editing ? exitEdit() : enterEdit();
+$('doneBtn').onclick = exitEdit;
+$('storeBtn').onclick = () => { refreshStore(); $('storeList').hidden = !$('storeList').hidden; };
+$('storeClose').onclick = () => $('storeList').hidden = true;
+const rotate = deg => {
+  if (!selected) return;
+  const r = (selected.r + deg + 360) % 360;
+  if (!valid(selected, selected.X, selected.Z, r)) { toast('這裡轉不開，先拖到空一點的地方再轉'); return; }
+  selected.r = r; applyItem(selected); saveLayout();
+};
+$('rot90').onclick = () => rotate(90);
+$('rot15').onclick = () => rotate(15);
+$('storeIt').onclick = () => {
+  if (!selected) return;
+  const it = selected; it.stored = true; applyItem(it); select(null);
+  rebuildColliders(); saveLayout(); refreshStore(); toast(`「${it.name}」已收進倉庫`);
+};
+$('resetBtn').onclick = () => {
+  const b = $('resetBtn');
+  if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = '確定還原？'; setTimeout(() => { delete b.dataset.armed; b.textContent = '還原'; }, 3000); return; }
+  delete b.dataset.armed; b.textContent = '還原';
+  select(null); applyLayout({}); saveLayout(); toast('已還原成官方擺法');
+};
+
+// 拖曳家具：在視窗的捕捉階段先處理，點到家具時就暫停轉視角
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), fp = new THREE.Vector3();
+const aim = e => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); };
+let edrag = null, etap = null;
+addEventListener('pointerdown', e => {
+  if (!editing || e.target !== el) return;
+  aim(e);
+  let it = null;
+  for (const h of ray.intersectObjects(items.filter(i => !i.stored).map(i => i.g), true)) {
+    const u = h.object.userData.item; if (!u) continue;
+    if (!it) it = u;
+    if (u.kind !== 'rug') { it = u; break; }
+  }
+  if (!it || !ray.ray.intersectPlane(floorPlane, fp)) { etap = { x: e.clientX, y: e.clientY }; return; }
+  if (it !== selected) select(it);
+  orbit.enabled = false;
+  edrag = { id: e.pointerId, it, dx: it.g.position.x - fp.x, dz: it.g.position.z - fp.z, moved: false };
+  el.setPointerCapture(e.pointerId);
+}, true);
+addEventListener('pointermove', e => {
+  if (!edrag || e.pointerId !== edrag.id) return;
+  aim(e);
+  if (!ray.ray.intersectPlane(floorPlane, fp)) return;
+  const it = edrag.it;
+  const X = Math.round(((fp.x + edrag.dx) + L / 2) * 20) * 5, Z = Math.round(((fp.z + edrag.dz) + W / 2) * 20) * 5; // 5 cm 一格
+  // 撞到就沿著能走的那個方向滑
+  for (const [x, z] of [[X, Z], [X, it.Z], [it.X, Z]]) if ((x !== it.X || z !== it.Z) && valid(it, x, z, it.r)) {
+    it.X = x; it.Z = z; applyItem(it); edrag.moved = true; break;
+  }
+}, true);
+addEventListener('pointerup', e => {
+  if (edrag && e.pointerId === edrag.id) {
+    if (edrag.moved) { saveLayout(); rebuildColliders(); }
+    edrag = null; orbit.enabled = mode === 'orbit';
+  } else if (etap && Math.hypot(e.clientX - etap.x, e.clientY - etap.y) < 10) select(null);
+  etap = null;
+}, true);
+
+// ---------- 拍照、分享擺法 ----------
+function snapshot() {
+  const keep = outline; if (keep) keep.visible = false;
+  renderer.render(scene, camera);
+  const src = renderer.domElement, c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d'), k = c.width / innerWidth;
+  g.drawImage(src, 0, 0);
+  if (keep) keep.visible = true;
+  // 浮水印：棚名＋當下的日期、時間、天氣
+  const [m, d] = doyToMD(state.doy), wName = { clear: '晴', haze: '薄雲', overcast: '陰天' }[state.w];
+  g.fillStyle = 'rgba(255,255,255,.82)'; g.strokeStyle = 'rgba(0,0,0,.08)';
+  const bx = 14 * k, by = c.height - 62 * k, bw = 230 * k, bh = 48 * k;
+  g.beginPath(); g.roundRect(bx, by, bw, bh, 10 * k); g.fill(); g.stroke();
+  g.fillStyle = '#2a2826'; g.font = `600 ${15 * k}px -apple-system, "PingFang TC", sans-serif`;
+  g.fillText('nikkohaus 日光小室', bx + 12 * k, by + 20 * k);
+  g.fillStyle = 'rgba(42,40,38,.65)'; g.font = `${12 * k}px -apple-system, "PingFang TC", sans-serif`;
+  g.fillText(`${m} 月 ${d} 日 ${hm(state.t)} · ${wName}`, bx + 12 * k, by + 38 * k);
+  // 同步轉成檔案，分享時才不會因為等待而失去「使用者剛點過」的權限
+  const url = c.toDataURL('image/jpeg', 0.9), bin = atob(url.split(',')[1]), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return { url, file: new File([arr], `nikkohaus-日光小室-${m}${String(d).padStart(2, '0')}.jpg`, { type: 'image/jpeg' }) };
+}
+function showPhoto(url, name) {
+  $('photoImg').src = url; $('photoDl').href = url; $('photoDl').download = name; $('photo').hidden = false;
+}
+$('photo').onclick = e => { if (e.target.id !== 'photoDl') $('photo').hidden = true; };
+$('mPhoto').onclick = async () => {
+  const shot = snapshot();
+  if (narrow() && navigator.canShare?.({ files: [shot.file] })) {
+    try { await navigator.share({ files: [shot.file] }); return; } catch (err) { if (err.name === 'AbortError') return; }
+  }
+  showPhoto(shot.url, shot.file.name);
+};
+$('shareBtn').onclick = async () => {
+  const d = layoutDiff();
+  const link = location.origin + location.pathname + (Object.keys(d).length ? '#L=' + enc(d) : '');
+  const text = `日光小室的擺法：${link}`;
+  const shot = snapshot();
+  if (navigator.canShare?.({ files: [shot.file], text })) {
+    try { await navigator.share({ files: [shot.file], text, title: '日光小室的擺法' }); return; } catch (err) { if (err.name === 'AbortError') return; }
+  } else if (navigator.share) {
+    try { await navigator.share({ text, url: link, title: '日光小室的擺法' }); return; } catch (err) { if (err.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(link); toast('已複製擺法連結，貼到 LINE 或訊息就能分享'); }
+  catch { toast(`擺法連結：<input value="${link}" readonly onclick="this.select()">`, 12000); }
+};
+
+// 開啟時：分享連結的擺法 > 自己上次的擺法 > 官方擺法
+{
+  let d = null;
+  if (location.hash.startsWith('#L=')) { try { d = dec(location.hash.slice(3)); toast('這是別人分享的擺法，你可以按「擺設」再調整'); } catch {} }
+  if (!d) { try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch {} }
+  applyLayout(d || {});
+}
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
@@ -832,5 +1098,5 @@ renderer.setAnimationLoop(() => {
   }
   renderer.render(scene, camera);
 });
-window.__view = { THREE, scene, camera, pos, setMode, colliders, walls, state, updateLight,
+window.__view = { THREE, scene, camera, pos, setMode, colliders, walls, state, updateLight, items, valid, applyLayout, layoutDiff, enc, select, enterEdit,
   set yaw(v) { yaw = v; }, set pitch(v) { pitch = v; }, setTour: t => { tourT = t; snap = true; } };

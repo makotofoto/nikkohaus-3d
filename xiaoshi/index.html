@@ -8,6 +8,7 @@
   :root { --bg:#ecebe8; --fg:#2a2826; --dim:rgba(42,40,38,.6); --panel:rgba(255,255,255,.74); --line:rgba(0,0,0,.1); --acc:#e0a63a; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
     font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif; -webkit-user-select:none; user-select:none; }
+  [hidden] { display:none !important; }
   canvas { display:block; touch-action:none; position:fixed; inset:0; }
   #hud { position:fixed; left:16px; top:calc(16px + env(safe-area-inset-top, 0px)); right:16px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; gap:12px; }
   #title { font-size:15px; letter-spacing:.08em; font-weight:600; }
@@ -38,6 +39,31 @@
   #info { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); color:var(--dim); line-height:1.6; font-variant-numeric:tabular-nums; }
   #info .hit { color:#b57a10; font-weight:600; }
   #panelBtn { display:none; }
+  /* 擺設 */
+  body.edit #panel { display:none; }
+  body.edit #hOrbit, body:not(.edit) #hEdit { display:none; }
+  body.edit #help { left:50%; transform:translateX(-50%); bottom:auto; top:calc(96px + env(safe-area-inset-top, 0px)); opacity:1 !important; }
+  #editBar { position:fixed; left:12px; right:12px; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
+  #editBar > div { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:center; pointer-events:auto;
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:6px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 6px 24px rgba(0,0,0,.08); }
+  #editBar button { padding:7px 13px; }
+  #selBar b { font-size:13px; font-weight:600; padding:0 6px 0 8px; }
+  #storeIt { color:#9a3b2a; }
+  #storeList { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(76px + env(safe-area-inset-bottom, 0px)); width:min(340px, calc(100% - 24px));
+    max-height:50vh; overflow:auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 6px 24px rgba(0,0,0,.1); font-size:13px; }
+  #storeList h3 { margin:0 0 8px; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+  #storeList h3 button { padding:3px 10px; font-size:12px; }
+  #storeItems { display:flex; flex-direction:column; gap:6px; }
+  #storeItems button { display:flex; justify-content:space-between; border-radius:10px; text-align:left; }
+  #storeItems button span { color:#b57a10; font-size:12px; }
+  #storeItems p { margin:4px 0; color:var(--dim); line-height:1.5; }
+  #toast { position:fixed; left:50%; transform:translateX(-50%); top:calc(140px + env(safe-area-inset-top, 0px)); max-width:calc(100% - 32px);
+    background:rgba(42,40,38,.88); color:#fff; padding:9px 14px; border-radius:10px; font-size:13px; line-height:1.5; z-index:5; }
+  #toast input { width:100%; margin-top:6px; font:inherit; font-size:12px; padding:4px 6px; border-radius:6px; border:0; }
+  #photo { position:fixed; inset:0; z-index:10; background:rgba(20,19,18,.82); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px 16px; color:#fff; font-size:13px; }
+  #photo img { max-width:100%; max-height:75vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  #photo a { color:#2a2826; background:#fff; padding:8px 16px; border-radius:999px; text-decoration:none; }
   @media (pointer:fine) { body.walk #stick { display:none; } .touch { display:none; } }
   @media (pointer:coarse) { .desk { display:none; } }
   @media (max-width:700px) {
@@ -62,14 +88,24 @@
     <button id="mOrbit" class="on">俯瞰</button>
     <button id="mWalk">走進去</button>
     <button id="mTour">導覽</button>
+    <button id="mEdit">擺設</button>
+    <button id="mPhoto">拍照</button>
     <button id="panelBtn">☀ 光線</button>
   </div>
 </div>
 <div id="help">
   <span id="hOrbit"><span class="desk">拖曳旋轉 · 滾輪縮放 · 右鍵平移</span><span class="touch">單指旋轉 · 雙指縮放</span></span>
+  <span id="hEdit">點家具選取 · 拖曳移動 · 點空白處取消選取</span>
   <span id="hWalk" hidden><span class="desk">拖曳轉頭 · W A S D／方向鍵移動</span><span class="touch">右邊拖曳轉頭 · 左下搖桿移動</span></span>
 </div>
 <div id="stick"><div id="knob"></div></div>
+<div id="editBar" hidden>
+  <div id="selBar" hidden><b id="selName"></b><button id="rot90">轉 90°</button><button id="rot15">轉 15°</button><button id="storeIt">收起</button></div>
+  <div><button id="storeBtn">倉庫<span id="storeCount"></span></button><button id="resetBtn">還原</button><button id="shareBtn">分享擺法</button><button id="doneBtn" class="on">完成</button></div>
+</div>
+<div id="storeList" hidden><h3>倉庫 <button id="storeClose">關閉</button></h3><div id="storeItems"></div></div>
+<div id="toast" hidden></div>
+<div id="photo" hidden><img id="photoImg" alt="棚內照片"><span>手機請長按圖片儲存 · 點空白處關閉</span><a id="photoDl" href="#">下載照片</a></div>
 <div id="panel">
   <h3>光線 <button id="panelClose" class="touch">收起</button></h3>
   <div class="row">
