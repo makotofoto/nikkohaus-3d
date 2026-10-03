@@ -1080,7 +1080,8 @@ $('mMusic').onclick = () => { $('musicPanel').hidden = !$('musicPanel').hidden; 
 $('musicClose').onclick = () => $('musicPanel').hidden = true;
 el.addEventListener('pointerdown', () => $('musicPanel').hidden = true);
 // 記得上次選的音樂；瀏覽器規定要先點一下畫面才能出聲，所以等第一次點擊再開始播
-if (PRESETS[mPref.p]) addEventListener('pointerdown', () => { if (!music.preset) { music.play(mPref.p); renderMusic(); } }, { once: true, capture: true });
+// iPhone 要手指放開（pointerup）才算可以出聲的點擊，按下（pointerdown）不算
+if (PRESETS[mPref.p]) addEventListener('pointerup', () => { if (!music.preset && PRESETS[mPref.p]) { music.play(mPref.p); renderMusic(); } }, { once: true, capture: true });
 renderMusic();
 
 addEventListener('resize', () => {

@@ -10,6 +10,27 @@ export function createMusic(getLight) {
   let ctx = null, master, musicBus, ambBus, comp, meter, timer = null, preset = null, volume = 0.6;
   let beds = [], nextBeat = 0, beat = 0, white, pink, ksCache = new Map(), brightness;
 
+  // iPhone 的靜音鍵預設會讓網頁音效無聲。把網頁宣告成「播放音樂」，靜音模式下也照常播放，
+  // 大小聲交給手機音量鍵。新版 iOS（16.4+）用 audioSession；舊版用一段無聲的 <audio> 循環播放，
+  // 讓系統把整個網頁當成正在播音樂。
+  let keepAlive = null;
+  function silentWav() {
+    const sr = 8000, n = sr / 2, b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+    const str = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+  }
+  function playThroughSilentSwitch() {
+    try { if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; } } catch {}
+    if (!/iP(hone|ad|od)|Macintosh/.test(navigator.userAgent) || !('ontouchend' in document)) return;
+    if (!keepAlive) {
+      keepAlive = new Audio(silentWav());
+      keepAlive.loop = true; keepAlive.setAttribute('playsinline', ''); keepAlive.volume = 0.01;
+    }
+    keepAlive.play().catch(() => {});
+  }
   function init() {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain(); master.gain.value = 0;
@@ -26,6 +47,7 @@ export function createMusic(getLight) {
     document.addEventListener('visibilitychange', () => {
       if (!ctx || !preset) return;
       document.hidden ? ctx.suspend() : ctx.resume();
+      if (keepAlive) document.hidden ? keepAlive.pause() : keepAlive.play().catch(() => {});
     });
   }
   function impulse(sec) {
@@ -238,6 +260,7 @@ export function createMusic(getLight) {
     get preset() { return preset; },
     get volume() { return volume; },
     play(p) {
+      playThroughSilentSwitch(); // 要在使用者點擊的當下呼叫
       if (!ctx) init();
       ctx.resume();
       if (p === preset) return;
@@ -251,6 +274,7 @@ export function createMusic(getLight) {
     stop() {
       if (!ctx || !preset) return;
       preset = null; clearInterval(timer);
+      keepAlive?.pause();
       master.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
       for (const b of beds) b.stop(); beds = [];
     },
