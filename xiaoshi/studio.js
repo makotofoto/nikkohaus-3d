@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { solar, sunTimes, doyToMD, mdToDoy, compassName } from './sun.js';
-import { createMusic, PRESETS } from './music.js';
+import { createMusic } from './music.js';
 
 // 日光小室：台北，窗朝南（秋冬陽光才照得進來）
 const LAT = 25.04, LON = 121.53, TZ = 8, FACE = 180;
@@ -1056,32 +1056,22 @@ $('shareBtn').onclick = async () => {
   applyLayout(d || {});
 }
 
-// ---------- 背景音樂 ----------
+// ---------- 背景音樂：右上角「♪ 音樂」就是開關，預設開 ----------
 const music = createMusic(() => ({ el: light.el, t: state.t, w: state.w, enters: light.enters }));
 const MKEY = 'nikko3d.music';
-const mPref = { p: 'light', v: 0.6 }; // 預設開「光線連動」（第一次點畫面時開始播）
-try { Object.assign(mPref, JSON.parse(localStorage.getItem(MKEY) || '{}')); } catch {}
-music.setVolume(mPref.v);
-function renderMusic() {
-  const cur = music.preset || 'off';
-  for (const b of document.querySelectorAll('#musicSeg button')) b.classList.toggle('on', b.dataset.p === cur);
-  $('mMusic').classList.toggle('playing', !!music.preset); // 按鈕一律叫「音樂」，播放中音符變色
-  $('vol').value = mPref.v;
-}
-function setMusic(p) {
-  mPref.p = p;
-  try { localStorage.setItem(MKEY, JSON.stringify(mPref)); } catch {}
-  p === 'off' ? music.stop() : music.play(p);
+let musicOn = true;
+try { musicOn = JSON.parse(localStorage.getItem(MKEY) || '{}').on !== false; } catch {}
+const renderMusic = () => $('mMusic').classList.toggle('playing', !!music.preset); // 播放中音符變色
+$('mMusic').onclick = () => {
+  musicOn = !music.preset;
+  musicOn ? music.play('light') : music.stop();
+  try { localStorage.setItem(MKEY, JSON.stringify({ on: musicOn })); } catch {}
   renderMusic();
-}
-for (const b of document.querySelectorAll('#musicSeg button')) b.onclick = () => setMusic(b.dataset.p);
-$('vol').oninput = e => { mPref.v = +e.target.value; music.setVolume(mPref.v); try { localStorage.setItem(MKEY, JSON.stringify(mPref)); } catch {} };
-$('mMusic').onclick = () => { $('musicPanel').hidden = !$('musicPanel').hidden; };
-$('musicClose').onclick = () => $('musicPanel').hidden = true;
-el.addEventListener('pointerdown', () => $('musicPanel').hidden = true);
-// 記得上次選的音樂；瀏覽器規定要先點一下畫面才能出聲，所以等第一次點擊再開始播
-// iPhone 要手指放開（pointerup）才算可以出聲的點擊，按下（pointerdown）不算
-if (PRESETS[mPref.p]) addEventListener('pointerup', () => { if (!music.preset && PRESETS[mPref.p]) { music.play(mPref.p); renderMusic(); } }, { once: true, capture: true });
+};
+// 瀏覽器規定要先點一下才能出聲；iPhone 要手指放開（pointerup）才算，所以等第一次放開再開始播
+addEventListener('pointerup', e => {
+  if (musicOn && !music.preset && e.target.id !== 'mMusic' && !e.target.closest?.('#mMusic')) { music.play('light'); renderMusic(); }
+}, { once: true, capture: true });
 renderMusic();
 
 addEventListener('resize', () => {
