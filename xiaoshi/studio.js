@@ -1056,23 +1056,13 @@ $('shareBtn').onclick = async () => {
   applyLayout(d || {});
 }
 
-// ---------- 背景音樂：右上角「♪ 音樂」就是開關，預設開 ----------
+// ---------- 背景音樂：預設關，按右上角「♪ 音樂」才開，再按一次關 ----------
+// 在按鈕的點擊裡直接開始播，iPhone 才允許出聲；music.js 會把網頁設成「播放音樂」，靜音模式下也照播
 const music = createMusic(() => ({ el: light.el, t: state.t, w: state.w, enters: light.enters }));
-const MKEY = 'nikko3d.music';
-let musicOn = true;
-try { musicOn = JSON.parse(localStorage.getItem(MKEY) || '{}').on !== false; } catch {}
-const renderMusic = () => $('mMusic').classList.toggle('playing', !!music.preset); // 播放中音符變色
 $('mMusic').onclick = () => {
-  musicOn = !music.preset;
-  musicOn ? music.play('light') : music.stop();
-  try { localStorage.setItem(MKEY, JSON.stringify({ on: musicOn })); } catch {}
-  renderMusic();
+  music.preset ? music.stop() : music.play('light');
+  $('mMusic').classList.toggle('playing', !!music.preset); // 播放中音符變色
 };
-// 瀏覽器規定要先點一下才能出聲；iPhone 要手指放開（pointerup）才算，所以等第一次放開再開始播
-addEventListener('pointerup', e => {
-  if (musicOn && !music.preset && e.target.id !== 'mMusic' && !e.target.closest?.('#mMusic')) { music.play('light'); renderMusic(); }
-}, { once: true, capture: true });
-renderMusic();
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
