@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { solar, sunTimes, doyToMD, mdToDoy, compassName } from './sun.js';
+import { createMusic, PRESETS } from './music.js';
 
 // 日光小室：台北，窗朝南（秋冬陽光才照得進來）
 const LAT = 25.04, LON = 121.53, TZ = 8, FACE = 180;
@@ -1055,6 +1056,33 @@ $('shareBtn').onclick = async () => {
   applyLayout(d || {});
 }
 
+// ---------- 背景音樂 ----------
+const music = createMusic(() => ({ el: light.el, t: state.t, w: state.w, enters: light.enters }));
+const MKEY = 'nikko3d.music';
+const mPref = { p: 'off', v: 0.6 };
+try { Object.assign(mPref, JSON.parse(localStorage.getItem(MKEY) || '{}')); } catch {}
+music.setVolume(mPref.v);
+function renderMusic() {
+  const cur = music.preset || 'off';
+  for (const b of document.querySelectorAll('#musicSeg button')) b.classList.toggle('on', b.dataset.p === cur);
+  $('mMusic').textContent = music.preset ? '♪ ' + PRESETS[music.preset] : '♪ 音樂';
+  $('vol').value = mPref.v;
+}
+function setMusic(p) {
+  mPref.p = p;
+  try { localStorage.setItem(MKEY, JSON.stringify(mPref)); } catch {}
+  p === 'off' ? music.stop() : music.play(p);
+  renderMusic();
+}
+for (const b of document.querySelectorAll('#musicSeg button')) b.onclick = () => setMusic(b.dataset.p);
+$('vol').oninput = e => { mPref.v = +e.target.value; music.setVolume(mPref.v); try { localStorage.setItem(MKEY, JSON.stringify(mPref)); } catch {} };
+$('mMusic').onclick = () => { $('musicPanel').hidden = !$('musicPanel').hidden; };
+$('musicClose').onclick = () => $('musicPanel').hidden = true;
+el.addEventListener('pointerdown', () => $('musicPanel').hidden = true);
+// 記得上次選的音樂；瀏覽器規定要先點一下畫面才能出聲，所以等第一次點擊再開始播
+if (PRESETS[mPref.p]) addEventListener('pointerdown', () => { if (!music.preset) { music.play(mPref.p); renderMusic(); } }, { once: true, capture: true });
+renderMusic();
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
@@ -1098,5 +1126,5 @@ renderer.setAnimationLoop(() => {
   }
   renderer.render(scene, camera);
 });
-window.__view = { THREE, scene, camera, pos, setMode, colliders, walls, state, updateLight, items, valid, applyLayout, layoutDiff, enc, select, enterEdit,
+window.__view = { music, THREE, scene, camera, pos, setMode, colliders, walls, state, updateLight, items, valid, applyLayout, layoutDiff, enc, select, enterEdit,
   set yaw(v) { yaw = v; }, set pitch(v) { pitch = v; }, setTour: t => { tourT = t; snap = true; } };

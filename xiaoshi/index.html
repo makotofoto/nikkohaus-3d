@@ -64,6 +64,18 @@
   #photo { position:fixed; inset:0; z-index:10; background:rgba(20,19,18,.82); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px 16px; color:#fff; font-size:13px; }
   #photo img { max-width:100%; max-height:75vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
   #photo a { color:#2a2826; background:#fff; padding:8px 16px; border-radius:999px; text-decoration:none; }
+  /* 背景音樂 */
+  #musicPanel { position:fixed; right:16px; top:calc(108px + env(safe-area-inset-top, 0px)); width:270px; z-index:4; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:12px 14px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 6px 24px rgba(0,0,0,.1); font-size:12px; }
+  #musicPanel h3 { margin:0 0 10px; font-size:13px; font-weight:600; letter-spacing:.06em; display:flex; justify-content:space-between; align-items:center; }
+  #musicPanel h3 button { padding:3px 10px; font-size:12px; }
+  #musicSeg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  #musicSeg button { border-radius:12px; padding:8px 10px; text-align:left; font-size:13px; }
+  #musicSeg button small { display:block; font-size:11px; color:var(--dim); margin-top:2px; }
+  #musicSeg button.on small { color:rgba(255,255,255,.7); }
+  #musicSeg button[data-p=off] { grid-column:1 / -1; text-align:center; padding:6px; }
+  #musicPanel label { display:flex; align-items:center; gap:10px; margin-top:12px; color:var(--dim); white-space:nowrap; }
+  #musicPanel .note { margin:8px 0 0; color:var(--dim); font-size:11px; }
   @media (pointer:fine) { body.walk #stick { display:none; } .touch { display:none; } }
   @media (pointer:coarse) { .desk { display:none; } }
   @media (max-width:700px) {
@@ -71,6 +83,7 @@
     body.panelClosed #panel { display:none; }
     #panelBtn { display:inline-block; }
     #help { left:50%; transform:translateX(-50%); bottom:auto; top:calc(96px + env(safe-area-inset-top, 0px)); }
+    #musicPanel { left:12px; right:12px; width:auto; top:calc(100px + env(safe-area-inset-top, 0px)); }
     body.walk:not(.panelClosed) #stick { display:none; }
   }
 </style>
@@ -90,6 +103,7 @@
     <button id="mTour">導覽</button>
     <button id="mEdit">擺設</button>
     <button id="mPhoto">拍照</button>
+    <button id="mMusic">♪ 音樂</button>
     <button id="panelBtn">☀ 光線</button>
   </div>
 </div>
@@ -105,6 +119,18 @@
 </div>
 <div id="storeList" hidden><h3>倉庫 <button id="storeClose">關閉</button></h3><div id="storeItems"></div></div>
 <div id="toast" hidden></div>
+<div id="musicPanel" hidden>
+  <h3>背景音樂 <button id="musicClose">關閉</button></h3>
+  <div id="musicSeg">
+    <button data-p="off">關</button>
+    <button data-p="light">光線連動<small>跟著日期、時間、天氣變</small></button>
+    <button data-p="cafe">咖啡廳<small>爵士鋼琴、杯盤聲</small></button>
+    <button data-p="market">市集<small>撥弦吉他、熱鬧人聲</small></button>
+    <button data-p="morning">假日清晨<small>音樂盒、鳥叫、微風</small></button>
+  </div>
+  <label>音量 <input id="vol" type="range" min="0" max="1" step="0.05"></label>
+  <p class="note">iPhone 要關掉靜音模式才聽得到</p>
+</div>
 <div id="photo" hidden><img id="photoImg" alt="棚內照片"><span>手機請長按圖片儲存 · 點空白處關閉</span><a id="photoDl" href="#">下載照片</a></div>
 <div id="panel">
   <h3>光線 <button id="panelClose" class="touch">收起</button></h3>
