@@ -65,6 +65,7 @@
   #photo img { max-width:100%; max-height:75vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
   #photo a { color:#2a2826; background:#fff; padding:8px 16px; border-radius:999px; text-decoration:none; }
   /* 背景音樂 */
+  #mMusic.playing .note { color:var(--acc); }
   #musicPanel { position:fixed; right:16px; top:calc(108px + env(safe-area-inset-top, 0px)); width:270px; z-index:4; background:var(--panel); border:1px solid var(--line);
     border-radius:14px; padding:12px 14px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 6px 24px rgba(0,0,0,.1); font-size:12px; }
   #musicPanel h3 { margin:0 0 10px; font-size:13px; font-weight:600; letter-spacing:.06em; display:flex; justify-content:space-between; align-items:center; }
@@ -103,7 +104,7 @@
     <button id="mTour">導覽</button>
     <button id="mEdit">擺設</button>
     <button id="mPhoto">拍照</button>
-    <button id="mMusic">♪ 音樂</button>
+    <button id="mMusic"><span class="note">♪</span> 音樂</button>
     <button id="panelBtn">☀ 光線</button>
   </div>
 </div>

@@ -1059,13 +1059,13 @@ $('shareBtn').onclick = async () => {
 // ---------- 背景音樂 ----------
 const music = createMusic(() => ({ el: light.el, t: state.t, w: state.w, enters: light.enters }));
 const MKEY = 'nikko3d.music';
-const mPref = { p: 'off', v: 0.6 };
+const mPref = { p: 'light', v: 0.6 }; // 預設開「光線連動」（第一次點畫面時開始播）
 try { Object.assign(mPref, JSON.parse(localStorage.getItem(MKEY) || '{}')); } catch {}
 music.setVolume(mPref.v);
 function renderMusic() {
   const cur = music.preset || 'off';
   for (const b of document.querySelectorAll('#musicSeg button')) b.classList.toggle('on', b.dataset.p === cur);
-  $('mMusic').textContent = music.preset ? '♪ ' + PRESETS[music.preset] : '♪ 音樂';
+  $('mMusic').classList.toggle('playing', !!music.preset); // 按鈕一律叫「音樂」，播放中音符變色
   $('vol').value = mPref.v;
 }
 function setMusic(p) {
