@@ -1061,7 +1061,7 @@ $('shareBtn').onclick = async () => {
 const music = createMusic(() => ({ el: light.el, t: state.t, w: state.w, enters: light.enters }));
 $('mMusic').onclick = () => {
   music.preset ? music.stop() : music.play('light');
-  $('mMusic').classList.toggle('playing', !!music.preset); // 播放中音符變色
+  $('mMusic').classList.toggle('on', !!music.preset); // 播放中跟其他按鈕選中時一樣：黑底白字
 };
 
 addEventListener('resize', () => {
