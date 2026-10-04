@@ -592,6 +592,17 @@ item('bureau', '柚木書桌櫃', bureau(), 528, 499, Math.PI);
   const tab = B(0.03, 0.012, 0.025, M('#1c1c1c'), 0, 0.054, -0.12, bowl);
   for (let i = 0; i < 12; i++) { const a = rnd() * 6.3, r = rnd() * 0.055; add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.008, 0), M('#8a5528', { flatShading: true })), Math.cos(a) * r, 0.01, Math.sin(a) * r, bowl); }
   item('bowl', '粉紅寵物碗', bowl, 150, 420, 0, 'bowl', true);
+
+  // 寵物尿布墊：45 × 60 cm，白色吸水面有淡藍菱格壓紋、藍色邊。平放在地上（算地毯類，小狗可以走上去）
+  const padTex = canvasTex(180, 240, (g, w, h) => {
+    g.fillStyle = '#7fb2d9'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#fbfcfd'; g.fillRect(12, 12, w - 24, h - 24);
+    g.strokeStyle = 'rgba(127,178,217,.55)'; g.lineWidth = 2;
+    for (let k = -h; k < w + h; k += 22) { g.beginPath(); g.moveTo(k, 12); g.lineTo(k + h, h - 12); g.stroke(); g.beginPath(); g.moveTo(k + h, 12); g.lineTo(k, h - 12); g.stroke(); }
+    g.fillStyle = '#7fb2d9'; g.fillRect(0, 0, w, 12); g.fillRect(0, h - 12, w, 12);
+  });
+  const pad = G(); add(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.006, 0.6), [M('#7fb2d9'), M('#7fb2d9'), M('#fff', { map: padTex, roughness: 0.9 }), M('#7fb2d9'), M('#7fb2d9'), M('#7fb2d9')]), 0, 0.016, 0, pad); // 比地毯（1.2 cm）高一點，疊在地毯上也看得到
+  item('pad', '寵物尿布墊', pad, 720, 140, 0, 'rug', true);
 }
 
 // ---------- 博美：蓬蓬的橘棕色長毛，尾巴一大團捲在背上 ----------
@@ -1047,7 +1058,7 @@ addEventListener('pointerdown', e => {
     if (!it) it = u;
     if (u.kind !== 'rug') { it = u; break; }
   }
-  if (!it || it.kind === 'rug') it = nearestOnScreen(e, items.filter(i => !i.stored && i.kind !== 'rug')) || it;
+  if (!it || it.kind === 'rug') it = nearestOnScreen(e, items.filter(i => !i.stored && (i.kind !== 'rug' || i.id === 'pad'))) || it;
   if (!it || !ray.ray.intersectPlane(floorPlane, fp)) { etap = { x: e.clientX, y: e.clientY }; return; }
   if (it !== selected) select(it);
   orbit.enabled = false;
@@ -1124,7 +1135,7 @@ $('shareBtn').onclick = async () => {
 // ---------- 小狗：自己走動、暴衝、轉圈、坐、趴、睡、去碗那邊吃飯；點牠會汪汪叫 ----------
 pet = (() => {
   const it = dog.it, bubble = $('dogBubble');
-  const P = { y: 0, pitch: 0, front: 0, back: 0, head: 0, headYaw: 0, wagAmp: 0.4, wagSpd: 8, eye: 1, gait: 0 }; // 目前姿勢
+  const P = { y: 0, pitch: 0, front: 0, back: 0, head: 0, headYaw: 0, wagAmp: 0.4, wagSpd: 8, eye: 1, gait: 0, lift: 0 }; // 目前姿勢
   let T = { ...P }, state = 'idle', timer = 2, target = null, speed = 0, phase = 0, time = 0, after = null, spinLeft = 0;
   let obstacles = [], sleepZ = 0;
   const R_ = 0.16; // 小狗佔地半徑（公尺）
@@ -1143,6 +1154,29 @@ pet = (() => {
     return null;
   }
   const bowl = () => items.find(i => i.id === 'bowl');
+  const padIt = () => items.find(i => i.id === 'pad');
+  // 尿布墊上的痕跡：掛在尿布墊底下，搬動時一起動；收回倉庫就清乾淨
+  const marks = [];
+  function addMark(kind) {
+    const p = padIt(); if (!p || p.stored) return;
+    p.g.updateMatrixWorld(true);
+    const rear = new THREE.Vector3(posX() - Math.sin(it.r * D) * 0.13, 0, posZ() - Math.cos(it.r * D) * 0.13);
+    const lp = p.g.worldToLocal(rear);
+    lp.x = Math.max(-0.17, Math.min(0.17, lp.x)); lp.z = Math.max(-0.24, Math.min(0.24, lp.z));
+    let m;
+    if (kind === 'pee') {
+      m = new THREE.Mesh(new THREE.CircleGeometry(0.05 + Math.random() * 0.035, 20), new THREE.MeshStandardMaterial({ color: '#e0c03c', transparent: true, opacity: 0.62, roughness: 0.6 }));
+      m.rotation.x = -Math.PI / 2; m.position.set(lp.x, 0.0195 + marks.length * 0.0004, lp.z);
+    } else {
+      m = G(); const brown = M('#5b3a1f', { roughness: 0.8 });
+      [[0.022, 0.012], [0.017, 0.03], [0.011, 0.045]].forEach(([r, y], k) => add(new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), brown), (k % 2 ? 0.004 : -0.003), y, 0, m).scale.y = 0.75);
+      m.position.set(lp.x, 0.019, lp.z);
+    }
+    m.traverse(o => o.userData.item = p);
+    p.g.add(m); marks.push(m);
+    if (marks.length > 12) { const old = marks.shift(); old.parent.remove(old); }
+  }
+  function clearMarks() { for (const m of marks) m.parent?.remove(m); marks.length = 0; }
   // 姿勢樣板
   const POSE = {
     stand: { y: 0, pitch: 0, front: 0, back: 0, head: 0, eye: 1 },
@@ -1150,18 +1184,22 @@ pet = (() => {
     lie: { y: -0.085, pitch: 0, front: -1.45, back: 1.5, head: 0.3, eye: 1 }, // 照片那種後腿往後攤平的青蛙趴
     sleep: { y: -0.09, pitch: 0, front: -1.45, back: 1.5, head: 0.42, eye: 0.12 },
     eat: { y: 0, pitch: 0.12, front: 0, back: 0, head: 0.85, eye: 1 },
+    pee: { y: -0.06, pitch: -0.28, front: 0.28, back: -1.25, head: -0.05, eye: 1 },    // 母狗：後腿收到肚子下、屁股壓低整個蹲下去尿
+    poop: { y: -0.035, pitch: -0.24, front: 0.24, back: -0.95, head: 0.15, eye: 0.7 }, // 屁股抬高一點、弓背用力、瞇眼
   };
   function go(s, dur) {
     state = s; timer = dur;
-    const pose = { idle: 'stand', walk: 'stand', run: 'stand', spin: 'stand', happy: 'stand', toBowl: 'stand' }[s] || s;
+    const pose = { idle: 'stand', walk: 'stand', run: 'stand', spin: 'stand', happy: 'stand', toBowl: 'stand', toPad: 'stand' }[s] || s;
     Object.assign(T, POSE[pose] || POSE.stand);
-    T.wagAmp = { sleep: 0, lie: 0.1, eat: 0.5, happy: 0.9, run: 0.6 }[s] ?? 0.35;
+    T.wagAmp = { sleep: 0, lie: 0.1, eat: 0.5, happy: 0.9, run: 0.6, pee: 0.05, poop: 0 }[s] ?? 0.35;
     T.wagSpd = s === 'happy' ? 22 : 9;
+    T.lift = s === 'pee' ? 1 : 0;
   }
   function decide() {
     if (state === 'lie' && Math.random() < 0.55) return go('sleep', 10 + Math.random() * 14);
     const b = bowl(), opts = [['walk', 0.32], ['run', 0.1], ['sit', 0.14], ['lie', 0.16], ['spin', 0.08], ['idle', 0.12]];
     if (b && !b.stored) opts.push(['toBowl', 0.16]);
+    const pd = padIt(); if (pd && !pd.stored) opts.push(['toPad', 0.14]);
     let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), s = 'idle';
     for (const [k, w] of opts) if ((r -= w) <= 0) { s = k; break; }
     if (s === 'walk' || s === 'run') {
@@ -1172,6 +1210,15 @@ pet = (() => {
     if (s === 'toBowl') {
       const bx = PX(b.X), bz = PZ(b.Z), a = Math.random() * Math.PI * 2;
       for (let k = 0; k < 8; k++) { const ox = Math.cos(a + k) * 0.3, oz = Math.sin(a + k) * 0.3; if (free(bx + ox, bz + oz)) { target = { x: bx + ox, z: bz + oz, ox, oz }; speed = 0.5; return go('toBowl', 15); } }
+      return go('idle', 2);
+    }
+    if (s === 'toPad') {
+      // 走到尿布墊上隨便一個位置（存成相對尿布墊的位置，墊子被搬走就跟過去）
+      for (let k = 0; k < 10; k++) {
+        const lx = (Math.random() - 0.5) * 0.2, lz = (Math.random() - 0.5) * 0.3;
+        const c = Math.cos(pd.r * D), sn = Math.sin(pd.r * D), x = PX(pd.X) + lx * c + lz * sn, z = PZ(pd.Z) - lx * sn + lz * c;
+        if (free(x, z)) { target = { x, z, lx, lz, pad: true }; speed = 0.45; return go('toPad', 15); }
+      }
       return go('idle', 2);
     }
     if (s === 'spin') { spinLeft = Math.PI * 4; return go('spin', 3); }
@@ -1212,12 +1259,19 @@ pet = (() => {
   }
   function update(dt) {
     time += dt;
+    if (marks.length && padIt()?.stored) clearMarks(); // 尿布墊收回倉庫：換一張乾淨的
     if (it.stored) { bubble.hidden = true; return; }
     if (editing && (selected === it)) { timer = Math.max(timer, 0.5); } // 擺設時被選取就乖乖不動
     else {
       timer -= dt;
       if (state === 'toBowl') { const b = bowl(); if (!b || b.stored) go('idle', 1); else { target.x = PX(b.X) + target.ox; target.z = PZ(b.Z) + target.oz; } } // 碗被搬走就跟過去
-      if (state === 'walk' || state === 'run' || state === 'toBowl') {
+      if (state === 'toPad') {
+        const pd = padIt();
+        if (!pd || pd.stored) go('idle', 1);
+        else { const c = Math.cos(pd.r * D), sn = Math.sin(pd.r * D); target.x = PX(pd.X) + target.lx * c + target.lz * sn; target.z = PZ(pd.Z) - target.lx * sn + target.lz * c; }
+      }
+      if ((state === 'pee' || state === 'poop') && (!padIt() || padIt().stored)) go('idle', 1);
+      if (state === 'walk' || state === 'run' || state === 'toBowl' || state === 'toPad') {
         const dx = target.x - posX(), dz = target.z - posZ(), dist = Math.hypot(dx, dz);
         const off = turnTo(Math.atan2(dx, dz), dt, state === 'run' ? 7 : 4);
         const v = speed * (off > 1 ? 0.25 : 1);
@@ -1227,6 +1281,7 @@ pet = (() => {
         if (dist < 0.08) {
           T.gait = 0;
           if (state === 'toBowl') { turnTo(Math.atan2(PX(bowl().X) - posX(), PZ(bowl().Z) - posZ()), 1, 9); go('eat', 4 + Math.random() * 4); }
+          else if (state === 'toPad') { it.r += (Math.random() - 0.5) * 120; go(Math.random() < 0.6 ? 'pee' : 'poop', 3.5 + Math.random() * 2); }
           else if (after === 'run') { after = null; target = randomSpot(2); if (target) timer = 10; else go('idle', 2); }
           else go('idle', 1 + Math.random() * 2);
         }
@@ -1234,11 +1289,16 @@ pet = (() => {
       if (state === 'spin') { const s = Math.min(spinLeft, dt * 7); spinLeft -= s; it.r += s / D; phase += dt * 14; if (spinLeft <= 0) go('idle', 1.5); }
       if (state === 'happy') turnTo(Math.atan2(camera.position.x - posX(), camera.position.z - posZ()), dt, 8);
       if (state === 'eat') { const b = bowl(); if (!b || b.stored || Math.hypot(PX(b.X) - posX(), PZ(b.Z) - posZ()) > 0.45) go('idle', 1); } // 碗不見了或被搬走就不吃了
+      if (timer <= 0 && (state === 'pee' || state === 'poop')) {
+        const was = state; addMark(was);
+        if (was === 'poop' && Math.random() < 0.7) { target = randomSpot(2); if (target) { speed = 1.5; after = 'run'; go('run', 10); } else go('idle', 1); }
+        else go('idle', 1.5);
+      }
       if (timer <= 0) decide();
     }
     // 姿勢往目標平滑靠近
     const k = 1 - Math.exp(-dt * 6);
-    for (const key of ['y', 'pitch', 'front', 'back', 'head', 'wagAmp', 'wagSpd', 'eye', 'gait']) P[key] += (T[key] - P[key]) * k;
+    for (const key of ['y', 'pitch', 'front', 'back', 'head', 'wagAmp', 'wagSpd', 'eye', 'gait', 'lift']) P[key] += (T[key] - P[key]) * k;
     const sw = Math.sin(phase) * P.gait;
     dog.rig.position.y = P.y + Math.abs(Math.sin(phase)) * 0.018 * P.gait + (state === 'happy' ? Math.abs(Math.sin(time * 9)) * 0.04 : 0);
     dog.rig.rotation.x = P.pitch;
@@ -1247,6 +1307,12 @@ pet = (() => {
     const idleLook = state === 'idle' || state === 'sit' ? Math.sin(time * 0.8) * 0.6 : 0;
     dog.headPivot.rotation.set(P.head + (state === 'eat' ? Math.sin(time * 10) * 0.12 : 0), idleLook, 0);
     dog.tailPivot.rotation.z = Math.sin(time * P.wagSpd) * P.wagAmp;
+    // 尿尿：蹲著，左後腳往外側抬高（小狗面向 +Z，牠的左邊是 +X，左後腳是 legs[3]），身體往右傾一點
+    dog.legs[3].rotation.x = dog.legs[3].rotation.x * (1 - P.lift) - 0.15 * P.lift; // 抬起來的那隻腳不往前收
+    dog.legs[3].rotation.z = P.lift * 1.9; // 往外、往上抬，從毛裡露出來
+    dog.rig.rotation.z = P.lift * 0.18;    // 身體往右傾，左邊跟著抬高
+    const tailUp = { poop: -0.6, pee: -0.25 }[state] ?? 0; // 大便時尾巴翹高
+    dog.tailPivot.rotation.x += (tailUp - dog.tailPivot.rotation.x) * k;
     for (const e of dog.eyes) e.scale.y = P.eye;
     dog.body.scale.y = 0.9 * (1 + (state === 'sleep' ? Math.sin(time * 2.2) * 0.04 : 0));
     dog.g.position.set(posX(), 0, posZ()); dog.g.rotation.y = it.r * D;
@@ -1263,7 +1329,7 @@ pet = (() => {
     }
   }
   go('idle', 1);
-  return { update, tapped, obstaclesChanged, place, get state() { return state; }, go };
+  return { update, tapped, obstaclesChanged, place, get state() { return state; }, go, decideNow: s => { timer = 0; }, get marks() { return marks.length; } };
 })();
 pet.obstaclesChanged();
 
