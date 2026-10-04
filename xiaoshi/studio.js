@@ -1135,7 +1135,7 @@ $('shareBtn').onclick = async () => {
 // ---------- 小狗：自己走動、暴衝、轉圈、坐、趴、睡、去碗那邊吃飯；點牠會汪汪叫 ----------
 pet = (() => {
   const it = dog.it, bubble = $('dogBubble');
-  const P = { y: 0, pitch: 0, front: 0, back: 0, head: 0, headYaw: 0, wagAmp: 0.4, wagSpd: 8, eye: 1, gait: 0, lift: 0 }; // 目前姿勢
+  const P = { y: 0, pitch: 0, front: 0, back: 0, head: 0, headYaw: 0, wagAmp: 0.4, wagSpd: 8, eye: 1, gait: 0, lift: 0, roll: 0, spread: 0 }; // 目前姿勢
   let T = { ...P }, state = 'idle', timer = 2, target = null, speed = 0, phase = 0, time = 0, after = null, spinLeft = 0;
   let obstacles = [], sleepZ = 0;
   const R_ = 0.16; // 小狗佔地半徑（公尺）
@@ -1184,19 +1184,20 @@ pet = (() => {
     lie: { y: -0.085, pitch: 0, front: -1.45, back: 1.5, head: 0.3, eye: 1 }, // 照片那種後腿往後攤平的青蛙趴
     sleep: { y: -0.09, pitch: 0, front: -1.45, back: 1.5, head: 0.42, eye: 0.12 },
     eat: { y: 0, pitch: 0.12, front: 0, back: 0, head: 0.85, eye: 1 },
+    belly: { y: 0.3, pitch: 0, front: 0.95, back: -0.55, head: 0.35, eye: 0.12, roll: 2.75, spread: 0.45 }, // 翻肚子睡：四腳朝天、腳掌彎著
     pee: { y: -0.06, pitch: -0.28, front: 0.28, back: -1.25, head: -0.05, eye: 1 },    // 母狗：後腿收到肚子下、屁股壓低整個蹲下去尿
     poop: { y: -0.035, pitch: -0.24, front: 0.24, back: -0.95, head: 0.15, eye: 0.7 }, // 屁股抬高一點、弓背用力、瞇眼
   };
   function go(s, dur) {
     state = s; timer = dur;
     const pose = { idle: 'stand', walk: 'stand', run: 'stand', spin: 'stand', happy: 'stand', toBowl: 'stand', toPad: 'stand' }[s] || s;
-    Object.assign(T, POSE[pose] || POSE.stand);
-    T.wagAmp = { sleep: 0, lie: 0.1, eat: 0.5, happy: 0.9, run: 0.6, pee: 0.05, poop: 0 }[s] ?? 0.35;
+    Object.assign(T, { roll: 0, spread: 0 }, POSE[pose] || POSE.stand);
+    T.wagAmp = { sleep: 0, belly: 0, lie: 0.1, eat: 0.5, happy: 0.9, run: 0.6, pee: 0.05, poop: 0 }[s] ?? 0.35;
     T.wagSpd = s === 'happy' ? 22 : 9;
     T.lift = s === 'pee' ? 1 : 0;
   }
   function decide() {
-    if (state === 'lie' && Math.random() < 0.55) return go('sleep', 10 + Math.random() * 14);
+    if (state === 'lie') { const r = Math.random(); if (r < 0.4) return go('sleep', 10 + Math.random() * 14); if (r < 0.75) return go('belly', 8 + Math.random() * 10); } // 趴著之後：側睡或翻肚子睡
     const b = bowl(), opts = [['walk', 0.32], ['run', 0.1], ['sit', 0.14], ['lie', 0.16], ['spin', 0.08], ['idle', 0.12]];
     if (b && !b.stored) opts.push(['toBowl', 0.16]);
     const pd = padIt(); if (pd && !pd.stored) opts.push(['toPad', 0.14]);
@@ -1298,7 +1299,7 @@ pet = (() => {
     }
     // 姿勢往目標平滑靠近
     const k = 1 - Math.exp(-dt * 6);
-    for (const key of ['y', 'pitch', 'front', 'back', 'head', 'wagAmp', 'wagSpd', 'eye', 'gait', 'lift']) P[key] += (T[key] - P[key]) * k;
+    for (const key of ['y', 'pitch', 'front', 'back', 'head', 'wagAmp', 'wagSpd', 'eye', 'gait', 'lift', 'roll', 'spread']) P[key] += (T[key] - P[key]) * k;
     const sw = Math.sin(phase) * P.gait;
     dog.rig.position.y = P.y + Math.abs(Math.sin(phase)) * 0.018 * P.gait + (state === 'happy' ? Math.abs(Math.sin(time * 9)) * 0.04 : 0);
     dog.rig.rotation.x = P.pitch;
@@ -1309,16 +1310,17 @@ pet = (() => {
     dog.tailPivot.rotation.z = Math.sin(time * P.wagSpd) * P.wagAmp;
     // 尿尿：蹲著，左後腳往外側抬高（小狗面向 +Z，牠的左邊是 +X，左後腳是 legs[3]），身體往右傾一點
     dog.legs[3].rotation.x = dog.legs[3].rotation.x * (1 - P.lift) - 0.15 * P.lift; // 抬起來的那隻腳不往前收
-    dog.legs[3].rotation.z = P.lift * 1.9; // 往外、往上抬，從毛裡露出來
-    dog.rig.rotation.z = P.lift * 0.18;    // 身體往右傾，左邊跟著抬高
+    dog.legs.forEach((l, i) => l.rotation.z = (i % 2 ? 1 : -1) * P.spread); // 往兩側張開（翻肚子時）
+    dog.legs[3].rotation.z += P.lift * 1.9; // 尿尿：往外、往上抬，從毛裡露出來
+    dog.rig.rotation.z = P.lift * 0.18 + P.roll; // 尿尿往右傾；翻肚子整隻翻過來
     const tailUp = { poop: -0.6, pee: -0.25 }[state] ?? 0; // 大便時尾巴翹高
     dog.tailPivot.rotation.x += (tailUp - dog.tailPivot.rotation.x) * k;
     for (const e of dog.eyes) e.scale.y = P.eye;
-    dog.body.scale.y = 0.9 * (1 + (state === 'sleep' ? Math.sin(time * 2.2) * 0.04 : 0));
+    dog.body.scale.y = 0.9 * (1 + (state === 'sleep' || state === 'belly' ? Math.sin(time * 2.2) * 0.04 : 0));
     dog.g.position.set(posX(), 0, posZ()); dog.g.rotation.y = it.r * D;
     // 頭上的對話泡泡：叫的時候「汪汪！」，睡覺時「Zzz」
     if (time > bubbleUntil) {
-      if (state === 'sleep') { bubble.textContent = 'z z z'; bubble.className = 'zzz'; } else bubble.className = '';
+      if (state === 'sleep' || state === 'belly') { bubble.textContent = 'z z z'; bubble.className = 'zzz'; } else bubble.className = '';
     }
     const show = !!bubble.className && dog.g.visible;
     bubble.hidden = !show;
