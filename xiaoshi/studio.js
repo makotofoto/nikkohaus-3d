@@ -135,6 +135,7 @@ function place(g, X, Z, rot = 0, collide = true) {
 // kind：rug 地毯（可以壓在下面）、seat 椅凳、table 桌子（椅凳可以塞進桌下）
 const items = [];
 let editing = false;
+const hitOnly = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }); // 只用來被點到，畫面上看不到
 function item(id, name, g, X, Z, rot = 0, kind = '', stored = false) {
   g.updateMatrixWorld(true);
   // 還沒擺之前量外框；盆栽只算花盆（葉子可以伸到別的東西上面）
@@ -143,6 +144,14 @@ function item(id, name, g, X, Z, rot = 0, kind = '', stored = false) {
   place(g, X, Z, rot, false);
   const it = { id, name, g, kind, local, def: { X, Z, r: Math.round(rot * 180 / Math.PI), stored } };
   Object.assign(it, it.def);
+  // 小東西（碗、盆栽、小狗…）在手機上很難點中：加一個看不見、比較大的點擊範圍（不算進佔地大小）
+  const w = local.max.x - local.min.x, d = local.max.z - local.min.z;
+  if (Math.max(w, d) < 0.45) {
+    const r = Math.max(0.24, Math.max(w, d) / 2 + 0.12), h = Math.max(0.3, local.max.y - local.min.y);
+    const hitArea = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), hitOnly);
+    hitArea.position.set((local.min.x + local.max.x) / 2, h / 2, (local.min.z + local.max.z) / 2);
+    g.add(hitArea);
+  }
   g.traverse(o => o.userData.item = it);
   g.visible = !stored;
   items.push(it); return it;
@@ -966,9 +975,9 @@ function refreshStore() {
   for (const b of $('storeItems').querySelectorAll('button')) b.onclick = () => takeOut(items.find(i => i.id === b.dataset.id));
 }
 function takeOut(it) {
-  // 從房間中間往外找一個放得下的空位
-  for (let rad = 0; rad <= 500; rad += 25) for (let a = 0; a < 360; a += rad ? 30 : 360) {
-    const X = Math.round(500 + rad * Math.cos(a * D)), Z = Math.round(250 + rad * Math.sin(a * D) * 0.5);
+  // 從餐桌和玻璃隔間之間那塊空地開始往外找空位（放在看得到、好點的地方）
+  for (let rad = 0; rad <= 700; rad += 25) for (let a = 0; a < 360; a += rad ? 30 : 360) {
+    const X = Math.round(760 + rad * Math.cos(a * D)), Z = Math.round(240 + rad * Math.sin(a * D) * 0.5);
     for (const r of [it.r, it.r + 90]) if (valid(it, X, Z, r % 360)) {
       Object.assign(it, { X, Z, r: r % 360, stored: false }); applyItem(it);
       if (it.kind === 'pet') { rebuildColliders(); pet.place(); }
@@ -1013,6 +1022,18 @@ $('resetBtn').onclick = () => {
   select(null); applyLayout({}); saveLayout(); toast('已還原成官方擺法');
 };
 
+// 手機俯瞰時小東西只有幾個像素：手指落在一個指尖範圍內（約 28 px）就算點到最近的那個
+const _c = new THREE.Vector3();
+function nearestOnScreen(e, list, px = 28) {
+  let best = null, bd = px;
+  for (const it of list) {
+    it.g.getWorldPosition(_c); _c.y += 0.1; _c.project(camera);
+    if (_c.z > 1) continue;
+    const d = Math.hypot((_c.x + 1) / 2 * innerWidth - e.clientX, (1 - _c.y) / 2 * innerHeight - e.clientY);
+    if (d < bd) { bd = d; best = it; }
+  }
+  return best;
+}
 // 拖曳家具：在視窗的捕捉階段先處理，點到家具時就暫停轉視角
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), fp = new THREE.Vector3();
 const aim = e => { ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); };
@@ -1026,6 +1047,7 @@ addEventListener('pointerdown', e => {
     if (!it) it = u;
     if (u.kind !== 'rug') { it = u; break; }
   }
+  if (!it || it.kind === 'rug') it = nearestOnScreen(e, items.filter(i => !i.stored && i.kind !== 'rug')) || it;
   if (!it || !ray.ray.intersectPlane(floorPlane, fp)) { etap = { x: e.clientX, y: e.clientY }; return; }
   if (it !== selected) select(it);
   orbit.enabled = false;
@@ -1178,7 +1200,7 @@ pet = (() => {
   function tapped(e) {
     if (it.stored) return false;
     ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-    if (!ray.intersectObject(dog.g, true).length) return false;
+    if (!ray.intersectObject(dog.g, true).length && !nearestOnScreen(e, [it])) return false;
     bark(); go('happy', 1.6); showBubble('汪汪！', 1.4);
     return true;
   }
