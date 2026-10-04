@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { solar, sunTimes, doyToMD, mdToDoy, compassName } from './sun.js';
 import { createMusic } from './music.js';
@@ -573,7 +574,48 @@ item('bureau', '柚木書桌櫃', bureau(), 528, 499, Math.PI);
   geo.computeVertexNormals();
   const bean = G(); add(new THREE.Mesh(geo, M('#4a3426', { roughness: 0.95 })), 0, 0.215, 0, bean);
   item('beanbag', '深咖啡懶骨頭', bean, 500, 250, 0, 'seat', true);
+
+  // 粉紅摺疊矽膠寵物碗：一圈圈往外擴的碗身、黑色碗緣、裡面幾顆飼料
+  const bowl = G(), pinkM = M('#f08aa6', { roughness: 0.55, side: THREE.DoubleSide });
+  const prof = [[0, 0.002], [0.075, 0.002], [0.078, 0.014], [0.084, 0.018], [0.088, 0.032], [0.095, 0.036], [0.1, 0.05], [0.104, 0.058]].map(([x, y]) => new THREE.Vector2(x, y));
+  add(new THREE.Mesh(new THREE.LatheGeometry(prof, 40), pinkM), 0, 0, 0, bowl);
+  const rim = add(new THREE.Mesh(new THREE.TorusGeometry(0.106, 0.009, 8, 40), M('#1c1c1c', { roughness: 0.4 })), 0, 0.06, 0, bowl); rim.rotation.x = Math.PI / 2;
+  const tab = B(0.03, 0.012, 0.025, M('#1c1c1c'), 0, 0.054, -0.12, bowl);
+  for (let i = 0; i < 12; i++) { const a = rnd() * 6.3, r = rnd() * 0.055; add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.008, 0), M('#8a5528', { flatShading: true })), Math.cos(a) * r, 0.01, Math.sin(a) * r, bowl); }
+  item('bowl', '粉紅寵物碗', bowl, 150, 420, 0, 'bowl', true);
 }
+
+// ---------- 博美：蓬蓬的橘棕色長毛，尾巴一大團捲在背上 ----------
+function fluff(r, jitter = 0.18, detail = 1) {
+  let geo = new THREE.IcosahedronGeometry(r, detail);
+  geo.deleteAttribute('normal'); geo.deleteAttribute('uv'); geo = mergeVertices(geo);
+  const p = geo.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); v.multiplyScalar(1 + (rnd() - 0.5) * 2 * jitter); p.setXYZ(i, v.x, v.y, v.z); }
+  geo.computeVertexNormals(); return geo;
+}
+const dog = (() => {
+  const g = G(), rig = G(); g.add(rig);
+  const fur = M('#b8662c', { roughness: 0.95, flatShading: true }), furLight = M('#d79a5c', { roughness: 0.95, flatShading: true });
+  const furDark = M('#7a3f1c', { roughness: 0.9, flatShading: true }), black = M('#141414', { roughness: 0.3 });
+  const body = add(new THREE.Mesh(fluff(0.12, 0.16), fur), 0, 0.19, -0.01, rig); body.scale.set(0.95, 0.9, 1.35);
+  const mane = add(new THREE.Mesh(fluff(0.12, 0.2), furLight), 0, 0.22, 0.09, rig); mane.scale.set(1.05, 1, 0.85);
+  const headPivot = G(); headPivot.position.set(0, 0.26, 0.14); rig.add(headPivot);
+  const head = add(new THREE.Mesh(fluff(0.085, 0.14), fur), 0, 0.04, 0.06, headPivot);
+  add(new THREE.Mesh(fluff(0.04, 0.1), furLight), 0, 0.015, 0.13, headPivot).scale.set(1, 0.85, 1.1);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.013, 10, 8), black), 0, 0.025, 0.172, headPivot);
+  const eyes = [-1, 1].map(sx => add(new THREE.Mesh(new THREE.SphereGeometry(0.017, 12, 10), black), sx * 0.037, 0.058, 0.122, headPivot));
+  for (const sx of [-1, 1]) add(new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 4), M('#ffffff', { emissive: '#ffffff', emissiveIntensity: 0.6 })), sx * 0.037 + 0.006, 0.066, 0.137, headPivot); // 眼睛反光
+  for (const sx of [-1, 1]) { const ear = add(new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.055, 6), furDark), sx * 0.045, 0.12, 0.04, headPivot); ear.rotation.z = -sx * 0.35; }
+  const tailPivot = G(); tailPivot.position.set(0, 0.27, -0.15); rig.add(tailPivot);
+  const tail = add(new THREE.Mesh(fluff(0.09, 0.22), furLight), 0, 0.07, 0.02, tailPivot); tail.scale.set(0.95, 0.8, 1.3); tail.rotation.x = -0.5;
+  const legs = [[-1, 1], [1, 1], [-1, -1], [1, -1]].map(([sx, sz]) => {
+    const pv = G(); pv.position.set(sx * 0.06, 0.13, sz * 0.095); rig.add(pv);
+    CY(0.022, 0.02, 0.12, fur, 0, -0.12, 0, pv, 7); add(new THREE.Mesh(fluff(0.024, 0.1, 0), furLight), 0, -0.118, 0.01, pv);
+    return pv;
+  });
+  const it = item('dog', '博美', g, 300, 380, 0, 'pet', true);
+  return { it, g, rig, headPivot, tailPivot, legs, eyes, body };
+})();
 
 // ---------- 盡頭：玻璃隔間＋門口 ----------
 {
@@ -774,6 +816,7 @@ let drag = null;
 // 手機：點一下畫面空白處就開／關光線面板；拖曳照常轉視角
 // 導覽中要真的拖動才接手變成自由走，單純點一下不會打斷導覽
 const narrow = () => matchMedia('(max-width:700px)').matches;
+let pet = null; // 博美的行為，下面「小狗」那段建立
 let tap = null, tourPress = null;
 el.addEventListener('pointerdown', e => {
   tap = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -781,8 +824,9 @@ el.addEventListener('pointerdown', e => {
   if (mode === 'walk') { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); }
 });
 el.addEventListener('pointerup', e => {
-  if (tap && narrow() && !editing && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500)
-    document.body.classList.toggle('panelClosed');
+  const isTap = tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10 && performance.now() - tap.t < 500;
+  if (isTap && !editing && pet?.tapped(e)) { tap = tourPress = null; return; }
+  if (isTap && narrow() && !editing) document.body.classList.toggle('panelClosed');
   tap = tourPress = null;
 });
 el.addEventListener('pointermove', e => {
@@ -837,7 +881,8 @@ const fixedColliders = colliders.slice(); // 廚房、矮台這些固定的
 const D = Math.PI / 180;
 function rebuildColliders() {
   colliders.length = 0; colliders.push(...fixedColliders);
-  for (const it of items) if (!it.stored && it.kind !== 'rug') { it.g.updateMatrixWorld(true); colliders.push(new THREE.Box3().setFromObject(it.g)); }
+  for (const it of items) if (!it.stored && it.kind !== 'rug' && it.kind !== 'pet') { it.g.updateMatrixWorld(true); colliders.push(new THREE.Box3().setFromObject(it.g)); }
+  pet?.obstaclesChanged();
 }
 function applyItem(it) {
   it.g.position.set(PX(it.X), 0, PZ(it.Z)); it.g.rotation.y = it.r * D; it.g.visible = !it.stored;
@@ -861,14 +906,18 @@ function valid(it, X, Z, r) {
   if (!ROOMS.some(R => inside(f, R))) return false;
   if (it.kind === 'rug') return true;
   for (const b of fixedColliders) if (hit(f, { x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z })) return false;
-  for (const o of items) if (o !== it && !o.stored && o.kind !== 'rug' && !tucks(it, o) && hit(f, footprint(o, o.X, o.Z, o.r))) return false;
+  for (const o of items) if (o !== it && !o.stored && o.kind !== 'rug' && o.kind !== 'pet' && !tucks(it, o)
+    && !(it.kind === 'pet' && (o.kind === 'table' || o.kind === 'bowl')) && hit(f, footprint(o, o.X, o.Z, o.r))) return false;
   return true;
 }
 
 // 擺法 ↔ 文字：只記跟官方擺法不同的家具
 function layoutDiff() {
   const d = {};
-  for (const it of items) if (it.X !== it.def.X || it.Z !== it.def.Z || it.r !== it.def.r || it.stored !== it.def.stored) d[it.id] = [it.X, it.Z, it.r, it.stored ? 1 : 0];
+  for (const it of items) {
+    if (it.kind === 'pet') { if (it.stored !== it.def.stored) d[it.id] = [it.def.X, it.def.Z, it.def.r, it.stored ? 1 : 0]; continue; }
+    if (it.X !== it.def.X || it.Z !== it.def.Z || it.r !== it.def.r || it.stored !== it.def.stored) d[it.id] = [it.X, it.Z, it.r, it.stored ? 1 : 0];
+  }
   return d;
 }
 const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -880,6 +929,7 @@ function applyLayout(d) {
     applyItem(it);
   }
   rebuildColliders(); refreshStore();
+  pet?.place();
 }
 function saveLayout() {
   try { localStorage.setItem(KEY, JSON.stringify(layoutDiff())); } catch {}
@@ -921,6 +971,7 @@ function takeOut(it) {
     const X = Math.round(500 + rad * Math.cos(a * D)), Z = Math.round(250 + rad * Math.sin(a * D) * 0.5);
     for (const r of [it.r, it.r + 90]) if (valid(it, X, Z, r % 360)) {
       Object.assign(it, { X, Z, r: r % 360, stored: false }); applyItem(it);
+      if (it.kind === 'pet') { rebuildColliders(); pet.place(); }
       rebuildColliders(); saveLayout(); refreshStore(); $('storeList').hidden = true; select(it);
       toast(`已拿出「${it.name}」，拖曳到想放的位置`);
       return;
@@ -1048,6 +1099,152 @@ $('shareBtn').onclick = async () => {
   catch { toast(`擺法連結：<input value="${link}" readonly onclick="this.select()">`, 12000); }
 };
 
+// ---------- 小狗：自己走動、暴衝、轉圈、坐、趴、睡、去碗那邊吃飯；點牠會汪汪叫 ----------
+pet = (() => {
+  const it = dog.it, bubble = $('dogBubble');
+  const P = { y: 0, pitch: 0, front: 0, back: 0, head: 0, headYaw: 0, wagAmp: 0.4, wagSpd: 8, eye: 1, gait: 0 }; // 目前姿勢
+  let T = { ...P }, state = 'idle', timer = 2, target = null, speed = 0, phase = 0, time = 0, after = null, spinLeft = 0;
+  let obstacles = [], sleepZ = 0;
+  const R_ = 0.16; // 小狗佔地半徑（公尺）
+  function obstaclesChanged() {
+    obstacles = fixedColliders.map(b => ({ x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z }));
+    for (const o of items) if (!o.stored && !['rug', 'pet', 'table', 'bowl'].includes(o.kind)) obstacles.push(footprint(o, o.X, o.Z, o.r));
+  }
+  const box = (x, z) => ({ x0: x - R_, x1: x + R_, z0: z - R_, z1: z + R_ });
+  const free = (x, z) => { const f = box(x, z); return ROOMS.some(r => inside(f, r)) && !obstacles.some(o => hit(f, o)); };
+  const posX = () => PX(it.X), posZ = () => PZ(it.Z);
+  function randomSpot(minDist = 0.6) {
+    for (let k = 0; k < 40; k++) {
+      const x = -L / 2 + 0.3 + Math.random() * (L - 0.6), z = -W / 2 + 0.3 + Math.random() * (W - 0.6);
+      if (free(x, z) && Math.hypot(x - posX(), z - posZ()) > minDist) return { x, z };
+    }
+    return null;
+  }
+  const bowl = () => items.find(i => i.id === 'bowl');
+  // 姿勢樣板
+  const POSE = {
+    stand: { y: 0, pitch: 0, front: 0, back: 0, head: 0, eye: 1 },
+    sit: { y: -0.025, pitch: -0.42, front: 0.42, back: -1.25, head: -0.25, eye: 1 },
+    lie: { y: -0.085, pitch: 0, front: -1.45, back: 1.5, head: 0.3, eye: 1 }, // 照片那種後腿往後攤平的青蛙趴
+    sleep: { y: -0.09, pitch: 0, front: -1.45, back: 1.5, head: 0.42, eye: 0.12 },
+    eat: { y: 0, pitch: 0.12, front: 0, back: 0, head: 0.85, eye: 1 },
+  };
+  function go(s, dur) {
+    state = s; timer = dur;
+    const pose = { idle: 'stand', walk: 'stand', run: 'stand', spin: 'stand', happy: 'stand', toBowl: 'stand' }[s] || s;
+    Object.assign(T, POSE[pose] || POSE.stand);
+    T.wagAmp = { sleep: 0, lie: 0.1, eat: 0.5, happy: 0.9, run: 0.6 }[s] ?? 0.35;
+    T.wagSpd = s === 'happy' ? 22 : 9;
+  }
+  function decide() {
+    if (state === 'lie' && Math.random() < 0.55) return go('sleep', 10 + Math.random() * 14);
+    const b = bowl(), opts = [['walk', 0.32], ['run', 0.1], ['sit', 0.14], ['lie', 0.16], ['spin', 0.08], ['idle', 0.12]];
+    if (b && !b.stored) opts.push(['toBowl', 0.16]);
+    let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), s = 'idle';
+    for (const [k, w] of opts) if ((r -= w) <= 0) { s = k; break; }
+    if (s === 'walk' || s === 'run') {
+      target = randomSpot(s === 'run' ? 2 : 0.8); if (!target) return go('idle', 2);
+      speed = s === 'run' ? 1.5 : 0.42; after = s === 'run' && Math.random() < 0.6 ? 'run' : null;
+      return go(s, 12);
+    }
+    if (s === 'toBowl') {
+      const bx = PX(b.X), bz = PZ(b.Z), a = Math.random() * Math.PI * 2;
+      for (let k = 0; k < 8; k++) { const ox = Math.cos(a + k) * 0.3, oz = Math.sin(a + k) * 0.3; if (free(bx + ox, bz + oz)) { target = { x: bx + ox, z: bz + oz, ox, oz }; speed = 0.5; return go('toBowl', 15); } }
+      return go('idle', 2);
+    }
+    if (s === 'spin') { spinLeft = Math.PI * 4; return go('spin', 3); }
+    go(s, { sit: 3 + Math.random() * 4, lie: 5 + Math.random() * 6, idle: 2 + Math.random() * 3 }[s]);
+  }
+  const turnTo = (yaw, dt, rate) => {
+    let d = yaw - it.r * D; d = Math.atan2(Math.sin(d), Math.cos(d));
+    it.r = (it.r * D + Math.sign(d) * Math.min(Math.abs(d), rate * dt)) / D;
+    return Math.abs(d);
+  };
+  let sfx = null;
+  function bark() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    sfx ||= new (window.AudioContext || window.webkitAudioContext)(); sfx.resume();
+    const t0 = sfx.currentTime + 0.02;
+    for (let i = 0; i < 2; i++) {
+      const t = t0 + i * 0.21, pitch = 1 + (Math.random() - 0.5) * 0.1;
+      const o = sfx.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(980 * pitch, t); o.frequency.exponentialRampToValueAtTime(520 * pitch, t + 0.1);
+      const g = sfx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      for (const [f, q, a] of [[1300, 2.2, 1], [2700, 3, 0.5]]) { const bp = sfx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; const ga = sfx.createGain(); ga.gain.value = a; o.connect(bp).connect(ga).connect(g); }
+      g.connect(sfx.destination); o.start(t); o.stop(t + 0.16);
+    }
+  }
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), head = new THREE.Vector3();
+  function tapped(e) {
+    if (it.stored) return false;
+    ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+    if (!ray.intersectObject(dog.g, true).length) return false;
+    bark(); go('happy', 1.6); showBubble('汪汪！', 1.4);
+    return true;
+  }
+  let bubbleUntil = 0;
+  function showBubble(text, sec) { bubble.textContent = text; bubble.className = 'bark'; bubbleUntil = time + sec; }
+  function place() { // 拿出來時：從原本位置附近找空位
+    if (free(posX(), posZ())) return;
+    for (let r = 0.3; r < 6; r += 0.3) for (let a = 0; a < 6.3; a += 0.5) { const x = posX() + Math.cos(a) * r, z = posZ() + Math.sin(a) * r; if (free(x, z)) { it.X = (x + L / 2) * 100; it.Z = (z + W / 2) * 100; return; } }
+  }
+  function update(dt) {
+    time += dt;
+    if (it.stored) { bubble.hidden = true; return; }
+    if (editing && (selected === it)) { timer = Math.max(timer, 0.5); } // 擺設時被選取就乖乖不動
+    else {
+      timer -= dt;
+      if (state === 'toBowl') { const b = bowl(); if (!b || b.stored) go('idle', 1); else { target.x = PX(b.X) + target.ox; target.z = PZ(b.Z) + target.oz; } } // 碗被搬走就跟過去
+      if (state === 'walk' || state === 'run' || state === 'toBowl') {
+        const dx = target.x - posX(), dz = target.z - posZ(), dist = Math.hypot(dx, dz);
+        const off = turnTo(Math.atan2(dx, dz), dt, state === 'run' ? 7 : 4);
+        const v = speed * (off > 1 ? 0.25 : 1);
+        const nx = posX() + Math.sin(it.r * D) * v * dt, nz = posZ() + Math.cos(it.r * D) * v * dt;
+        if (free(nx, nz) || !free(posX(), posZ())) { it.X = (nx + L / 2) * 100; it.Z = (nz + W / 2) * 100; phase += v * dt * 26; T.gait = state === 'run' ? 0.9 : 0.55; }
+        else timer = 0; // 擋住了就換個主意
+        if (dist < 0.08) {
+          T.gait = 0;
+          if (state === 'toBowl') { turnTo(Math.atan2(PX(bowl().X) - posX(), PZ(bowl().Z) - posZ()), 1, 9); go('eat', 4 + Math.random() * 4); }
+          else if (after === 'run') { after = null; target = randomSpot(2); if (target) timer = 10; else go('idle', 2); }
+          else go('idle', 1 + Math.random() * 2);
+        }
+      } else T.gait = state === 'spin' ? 0.6 : 0;
+      if (state === 'spin') { const s = Math.min(spinLeft, dt * 7); spinLeft -= s; it.r += s / D; phase += dt * 14; if (spinLeft <= 0) go('idle', 1.5); }
+      if (state === 'happy') turnTo(Math.atan2(camera.position.x - posX(), camera.position.z - posZ()), dt, 8);
+      if (state === 'eat') { const b = bowl(); if (!b || b.stored || Math.hypot(PX(b.X) - posX(), PZ(b.Z) - posZ()) > 0.45) go('idle', 1); } // 碗不見了或被搬走就不吃了
+      if (timer <= 0) decide();
+    }
+    // 姿勢往目標平滑靠近
+    const k = 1 - Math.exp(-dt * 6);
+    for (const key of ['y', 'pitch', 'front', 'back', 'head', 'wagAmp', 'wagSpd', 'eye', 'gait']) P[key] += (T[key] - P[key]) * k;
+    const sw = Math.sin(phase) * P.gait;
+    dog.rig.position.y = P.y + Math.abs(Math.sin(phase)) * 0.018 * P.gait + (state === 'happy' ? Math.abs(Math.sin(time * 9)) * 0.04 : 0);
+    dog.rig.rotation.x = P.pitch;
+    dog.legs[0].rotation.x = P.front + sw; dog.legs[3].rotation.x = P.back + sw;
+    dog.legs[1].rotation.x = P.front - sw; dog.legs[2].rotation.x = P.back - sw;
+    const idleLook = state === 'idle' || state === 'sit' ? Math.sin(time * 0.8) * 0.6 : 0;
+    dog.headPivot.rotation.set(P.head + (state === 'eat' ? Math.sin(time * 10) * 0.12 : 0), idleLook, 0);
+    dog.tailPivot.rotation.z = Math.sin(time * P.wagSpd) * P.wagAmp;
+    for (const e of dog.eyes) e.scale.y = P.eye;
+    dog.body.scale.y = 0.9 * (1 + (state === 'sleep' ? Math.sin(time * 2.2) * 0.04 : 0));
+    dog.g.position.set(posX(), 0, posZ()); dog.g.rotation.y = it.r * D;
+    // 頭上的對話泡泡：叫的時候「汪汪！」，睡覺時「Zzz」
+    if (time > bubbleUntil) {
+      if (state === 'sleep') { bubble.textContent = 'z z z'; bubble.className = 'zzz'; } else bubble.className = '';
+    }
+    const show = !!bubble.className && dog.g.visible;
+    bubble.hidden = !show;
+    if (show) {
+      dog.headPivot.getWorldPosition(head); head.y += 0.22; head.project(camera);
+      if (head.z > 1) bubble.hidden = true;
+      else bubble.style.transform = `translate(${(head.x + 1) / 2 * innerWidth}px, ${(1 - head.y) / 2 * innerHeight}px) translate(-50%, -100%)`;
+    }
+  }
+  go('idle', 1);
+  return { update, tapped, obstaclesChanged, place, get state() { return state; }, go };
+})();
+pet.obstaclesChanged();
+
 // 開啟時：分享連結的擺法 > 自己上次的擺法 > 官方擺法
 {
   let d = null;
@@ -1105,7 +1302,8 @@ renderer.setAnimationLoop(() => {
     orbit.update();
     setCut(true);
   }
+  pet?.update(dt);
   renderer.render(scene, camera);
 });
-window.__view = { music, THREE, scene, camera, pos, setMode, colliders, walls, state, updateLight, items, valid, applyLayout, layoutDiff, enc, select, enterEdit,
+window.__view = { get pet() { return pet; }, music, THREE, scene, camera, pos, setMode, colliders, walls, state, updateLight, items, valid, applyLayout, layoutDiff, enc, select, enterEdit,
   set yaw(v) { yaw = v; }, set pitch(v) { pitch = v; }, setTour: t => { tourT = t; snap = true; } };

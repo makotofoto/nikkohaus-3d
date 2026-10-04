@@ -65,6 +65,12 @@
   #photo img { max-width:100%; max-height:75vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
   #photo a { color:#2a2826; background:#fff; padding:8px 16px; border-radius:999px; text-decoration:none; }
   /* 背景音樂 */
+  /* 小狗頭上的泡泡 */
+  #dogBubble { position:fixed; left:0; top:0; pointer-events:none; z-index:3; font-size:13px; font-weight:600; white-space:nowrap;
+    background:#fff; color:#2a2826; padding:4px 10px; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,.15); }
+  #dogBubble.zzz { background:rgba(255,255,255,.75); color:#6a6f88; font-weight:500; font-style:italic; animation:zzz 2.4s ease-in-out infinite; }
+  @keyframes zzz { 0%,100% { opacity:.5 } 50% { opacity:1 } }
+  @media (prefers-reduced-motion: reduce) { #dogBubble.zzz { animation:none; } }
   @media (pointer:fine) { body.walk #stick { display:none; } .touch { display:none; } }
   @media (pointer:coarse) { .desk { display:none; } }
   @media (max-width:700px) {
@@ -107,6 +113,7 @@
 </div>
 <div id="storeList" hidden><h3>倉庫 <button id="storeClose">關閉</button></h3><div id="storeItems"></div></div>
 <div id="toast" hidden></div>
+<div id="dogBubble" hidden></div>
 <div id="photo" hidden><img id="photoImg" alt="棚內照片"><span>手機請長按圖片儲存 · 點空白處關閉</span><a id="photoDl" href="#">下載照片</a></div>
 <div id="panel">
   <h3>光線 <button id="panelClose" class="touch">收起</button></h3>
