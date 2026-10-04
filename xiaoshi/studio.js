@@ -1140,12 +1140,70 @@ pet = (() => {
   let obstacles = [], sleepZ = 0;
   const R_ = 0.16; // 小狗佔地半徑（公尺）
   function obstaclesChanged() {
+    grid = null; // 家具動過：找路的格子圖要重算
     obstacles = fixedColliders.map(b => ({ x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z }));
     for (const o of items) if (!o.stored && !['rug', 'pet', 'table', 'bowl'].includes(o.kind)) obstacles.push(footprint(o, o.X, o.Z, o.r));
   }
   const box = (x, z) => ({ x0: x - R_, x1: x + R_, z0: z - R_, z1: z + R_ });
   const free = (x, z) => { const f = box(x, z); return ROOMS.some(r => inside(f, r)) && !obstacles.some(o => hit(f, o)); };
   const posX = () => PX(it.X), posZ = () => PZ(it.Z);
+  // ---------- 找路：房間切成 10 cm 的格子，A* 算出繞過家具的路線 ----------
+  const CELL = 0.1, gx0 = -L / 2, gz0 = PZ(-AD), GX = Math.round(L / CELL), GZ = Math.round((W / 2 - gz0) / CELL);
+  let grid = null, route = null, routeGoal = null;
+  const stuck = { x: 0, z: 0, t: 0, n: 0 };
+  function buildGrid() {
+    grid = new Uint8Array(GX * GZ);
+    for (let j = 0; j < GZ; j++) for (let i = 0; i < GX; i++) grid[j * GX + i] = free(gx0 + (i + 0.5) * CELL, gz0 + (j + 0.5) * CELL) ? 1 : 0;
+  }
+  const cellOf = (x, z) => [Math.min(GX - 1, Math.max(0, Math.floor((x - gx0) / CELL))), Math.min(GZ - 1, Math.max(0, Math.floor((z - gz0) / CELL)))];
+  function nearestOpen(i, j) {
+    for (let r = 0; r < 8; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+      const a = i + di, b = j + dj;
+      if ((Math.abs(di) === r || Math.abs(dj) === r) && a >= 0 && b >= 0 && a < GX && b < GZ && grid[b * GX + a]) return [a, b];
+    }
+    return null;
+  }
+  function lineFree(ax, az, bx, bz) {
+    const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.05);
+    for (let k = 1; k <= n; k++) if (!free(ax + (bx - ax) * k / n, az + (bz - az) * k / n)) return false;
+    return true;
+  }
+  function findPath(x1, z1) {
+    if (!grid) buildGrid();
+    const s0 = nearestOpen(...cellOf(posX(), posZ())), g0 = nearestOpen(...cellOf(x1, z1));
+    if (!s0 || !g0) return null;
+    const N = GX * GZ, cost = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), shut = new Uint8Array(N);
+    const start = s0[1] * GX + s0[0], goal = g0[1] * GX + g0[0];
+    const h = c => Math.hypot(c % GX - g0[0], Math.floor(c / GX) - g0[1]);
+    const heap = [[h(start), start]]; cost[start] = 0;
+    const push = e => { heap.push(e); let i = heap.length - 1; while (i) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    while (heap.length) {
+      const [, c] = pop(); if (shut[c]) continue; shut[c] = 1;
+      if (c === goal) break;
+      const ci = c % GX, cj = Math.floor(c / GX);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= GX || nj >= GZ) continue;
+        const n = nj * GX + ni; if (!grid[n] || shut[n]) continue;
+        if (di && dj && (!grid[cj * GX + ni] || !grid[nj * GX + ci])) continue; // 不從家具的角斜切過去
+        const c2 = cost[c] + (di && dj ? 1.414 : 1);
+        if (c2 < cost[n]) { cost[n] = c2; from[n] = c; push([c2 + h(n), n]); }
+      }
+    }
+    if (from[goal] === -1 && goal !== start) return null;
+    const pts = [{ x: x1, z: z1 }];
+    for (let c = from[goal]; c !== -1 && c !== start; c = from[c]) pts.push({ x: gx0 + (c % GX + 0.5) * CELL, z: gz0 + (Math.floor(c / GX) + 0.5) * CELL });
+    pts.reverse();
+    // 拉直：看得到的轉角就直接跳過
+    const out = []; let ax = posX(), az = posZ(), k = 0;
+    while (k < pts.length) {
+      let far = k; for (let m = pts.length - 1; m > k; m--) if (lineFree(ax, az, pts[m].x, pts[m].z)) { far = m; break; }
+      out.push(pts[far]); ax = pts[far].x; az = pts[far].z; k = far + 1;
+    }
+    return out;
+  }
+  function planTo(t) { stuck.t = time; route = findPath(t.x, t.z); routeGoal = route ? { x: t.x, z: t.z } : null; return !!route; }
   function randomSpot(minDist = 0.6) {
     for (let k = 0; k < 40; k++) {
       const x = -L / 2 + 0.3 + Math.random() * (L - 0.6), z = -W / 2 + 0.3 + Math.random() * (W - 0.6);
@@ -1177,6 +1235,24 @@ pet = (() => {
     if (marks.length > 12) { const old = marks.shift(); old.parent.remove(old); }
   }
   function clearMarks() { for (const m of marks) m.parent?.remove(m); marks.length = 0; }
+  // 上廁所時間表：尿布墊拿出來後 1 分鐘內上第一次（尿或大隨機），之後每隔 1～2 分鐘輪流換另一種
+  const potty = { due: null, next: null, padOut: false };
+  function schedulePotty() {
+    const pd = padIt(), out = !!pd && !pd.stored && !it.stored;
+    if (out && !potty.padOut) { potty.due = time + 15 + Math.random() * 40; potty.next = Math.random() < 0.5 ? 'pee' : 'poop'; }
+    if (!out) potty.due = null;
+    potty.padOut = out;
+  }
+  function goToPad() {
+    // 走到尿布墊上隨便一個位置（存成相對尿布墊的位置，墊子被搬走就跟過去）
+    const pd = padIt();
+    for (let k = 0; k < 10; k++) {
+      const lx = (Math.random() - 0.5) * 0.2, lz = (Math.random() - 0.5) * 0.3;
+      const c = Math.cos(pd.r * D), sn = Math.sin(pd.r * D), x = PX(pd.X) + lx * c + lz * sn, z = PZ(pd.Z) - lx * sn + lz * c;
+      if (free(x, z)) { target = { x, z, lx, lz }; if (!planTo(target)) continue; speed = 0.5; after = null; return go('toPad', 60); }
+    }
+    potty.due = time + 5; // 墊子周圍被擋住，等一下再試
+  }
   // 姿勢樣板
   const POSE = {
     stand: { y: 0, pitch: 0, front: 0, back: 0, head: 0, eye: 1 },
@@ -1200,26 +1276,16 @@ pet = (() => {
     if (state === 'lie') { const r = Math.random(); if (r < 0.4) return go('sleep', 10 + Math.random() * 14); if (r < 0.75) return go('belly', 8 + Math.random() * 10); } // 趴著之後：側睡或翻肚子睡
     const b = bowl(), opts = [['walk', 0.32], ['run', 0.1], ['sit', 0.14], ['lie', 0.16], ['spin', 0.08], ['idle', 0.12]];
     if (b && !b.stored) opts.push(['toBowl', 0.16]);
-    const pd = padIt(); if (pd && !pd.stored) opts.push(['toPad', 0.14]);
     let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), s = 'idle';
     for (const [k, w] of opts) if ((r -= w) <= 0) { s = k; break; }
     if (s === 'walk' || s === 'run') {
-      target = randomSpot(s === 'run' ? 2 : 0.8); if (!target) return go('idle', 2);
+      target = randomSpot(s === 'run' ? 2 : 0.8); if (!target || !planTo(target)) return go('idle', 2);
       speed = s === 'run' ? 1.5 : 0.42; after = s === 'run' && Math.random() < 0.6 ? 'run' : null;
       return go(s, 12);
     }
     if (s === 'toBowl') {
       const bx = PX(b.X), bz = PZ(b.Z), a = Math.random() * Math.PI * 2;
-      for (let k = 0; k < 8; k++) { const ox = Math.cos(a + k) * 0.3, oz = Math.sin(a + k) * 0.3; if (free(bx + ox, bz + oz)) { target = { x: bx + ox, z: bz + oz, ox, oz }; speed = 0.5; return go('toBowl', 15); } }
-      return go('idle', 2);
-    }
-    if (s === 'toPad') {
-      // 走到尿布墊上隨便一個位置（存成相對尿布墊的位置，墊子被搬走就跟過去）
-      for (let k = 0; k < 10; k++) {
-        const lx = (Math.random() - 0.5) * 0.2, lz = (Math.random() - 0.5) * 0.3;
-        const c = Math.cos(pd.r * D), sn = Math.sin(pd.r * D), x = PX(pd.X) + lx * c + lz * sn, z = PZ(pd.Z) - lx * sn + lz * c;
-        if (free(x, z)) { target = { x, z, lx, lz, pad: true }; speed = 0.45; return go('toPad', 15); }
-      }
+      for (let k = 0; k < 8; k++) { const ox = Math.cos(a + k) * 0.3, oz = Math.sin(a + k) * 0.3; if (free(bx + ox, bz + oz)) { target = { x: bx + ox, z: bz + oz, ox, oz }; if (!planTo(target)) continue; speed = 0.5; return go('toBowl', 40); } }
       return go('idle', 2);
     }
     if (s === 'spin') { spinLeft = Math.PI * 4; return go('spin', 3); }
@@ -1262,8 +1328,12 @@ pet = (() => {
     time += dt;
     if (marks.length && padIt()?.stored) clearMarks(); // 尿布墊收回倉庫：換一張乾淨的
     if (it.stored) { bubble.hidden = true; return; }
+    schedulePotty();
     if (editing && (selected === it)) { timer = Math.max(timer, 0.5); } // 擺設時被選取就乖乖不動
     else {
+      // 上廁所時間到：玩到一半、睡到一半都會起來去；正在吃飯或被摸就先做完
+      if (potty.due !== null && time >= potty.due && !['toPad', 'pee', 'poop', 'eat', 'happy'].includes(state)) { potty.due = Infinity; goToPad(); }
+      if (potty.due === Infinity && !['toPad', 'pee', 'poop'].includes(state)) potty.due = time + 3; // 去的路上被打斷（被摸、被擋住），等一下重來
       timer -= dt;
       if (state === 'toBowl') { const b = bowl(); if (!b || b.stored) go('idle', 1); else { target.x = PX(b.X) + target.ox; target.z = PZ(b.Z) + target.oz; } } // 碗被搬走就跟過去
       if (state === 'toPad') {
@@ -1273,17 +1343,29 @@ pet = (() => {
       }
       if ((state === 'pee' || state === 'poop') && (!padIt() || padIt().stored)) go('idle', 1);
       if (state === 'walk' || state === 'run' || state === 'toBowl' || state === 'toPad') {
-        const dx = target.x - posX(), dz = target.z - posZ(), dist = Math.hypot(dx, dz);
-        const off = turnTo(Math.atan2(dx, dz), dt, state === 'run' ? 7 : 4);
-        const v = speed * (off > 1 ? 0.25 : 1);
+        if (!route || (routeGoal && Math.hypot(routeGoal.x - target.x, routeGoal.z - target.z) > 0.15)) if (!planTo(target)) { timer = 0; route = null; }
+        const wp = route && route.length ? route[0] : target;
+        const dx = wp.x - posX(), dz = wp.z - posZ();
+        if (route && route.length > 1 && Math.hypot(dx, dz) < 0.12) route.shift();
+        const dist = Math.hypot(target.x - posX(), target.z - posZ());
+        const off = turnTo(Math.atan2(dx, dz), dt, state === 'run' ? 7 : 4.5);
+        const v = speed * (off > 0.9 ? 0.2 : 1);
         const nx = posX() + Math.sin(it.r * D) * v * dt, nz = posZ() + Math.cos(it.r * D) * v * dt;
-        if (free(nx, nz) || !free(posX(), posZ())) { it.X = (nx + L / 2) * 100; it.Z = (nz + W / 2) * 100; phase += v * dt * 26; T.gait = state === 'run' ? 0.9 : 0.55; }
-        else timer = 0; // 擋住了就換個主意
+        // 往前走；正前方擋住就沿著家具邊滑過去
+        let mx = nx, mz = nz;
+        if (!(free(nx, nz) || !free(posX(), posZ()))) {
+          if (free(nx, posZ())) mz = posZ(); else if (free(posX(), nz)) mx = posX(); else { mx = null; }
+        }
+        if (mx !== null) { it.X = (mx + L / 2) * 100; it.Z = (mz + W / 2) * 100; phase += v * dt * 26; T.gait = state === 'run' ? 0.9 : 0.55; }
+        // 卡住偵測：1.2 秒沒前進就重算路線，再卡一次就放棄換別的事
+        if (Math.hypot(posX() - stuck.x, posZ() - stuck.z) > 0.04) { stuck.x = posX(); stuck.z = posZ(); stuck.t = time; stuck.n = 0; }
+        else if (time - stuck.t > 1.2) { stuck.t = time; if (++stuck.n > 1 || !planTo(target)) { timer = 0; route = null; } }
         if (dist < 0.08) {
+          route = null;
           T.gait = 0;
           if (state === 'toBowl') { turnTo(Math.atan2(PX(bowl().X) - posX(), PZ(bowl().Z) - posZ()), 1, 9); go('eat', 4 + Math.random() * 4); }
-          else if (state === 'toPad') { it.r += (Math.random() - 0.5) * 120; go(Math.random() < 0.6 ? 'pee' : 'poop', 3.5 + Math.random() * 2); }
-          else if (after === 'run') { after = null; target = randomSpot(2); if (target) timer = 10; else go('idle', 2); }
+          else if (state === 'toPad') { it.r += (Math.random() - 0.5) * 120; go(potty.next, 3.5 + Math.random() * 2); }
+          else if (after === 'run') { after = null; target = randomSpot(2); if (target && planTo(target)) timer = 10; else go('idle', 2); }
           else go('idle', 1 + Math.random() * 2);
         }
       } else T.gait = state === 'spin' ? 0.6 : 0;
@@ -1292,7 +1374,8 @@ pet = (() => {
       if (state === 'eat') { const b = bowl(); if (!b || b.stored || Math.hypot(PX(b.X) - posX(), PZ(b.Z) - posZ()) > 0.45) go('idle', 1); } // 碗不見了或被搬走就不吃了
       if (timer <= 0 && (state === 'pee' || state === 'poop')) {
         const was = state; addMark(was);
-        if (was === 'poop' && Math.random() < 0.7) { target = randomSpot(2); if (target) { speed = 1.5; after = 'run'; go('run', 10); } else go('idle', 1); }
+        potty.next = was === 'pee' ? 'poop' : 'pee'; potty.due = time + 60 + Math.random() * 60; // 下一次隔 1～2 分鐘、換另一種
+        if (was === 'poop' && Math.random() < 0.7) { target = randomSpot(2); if (target && planTo(target)) { speed = 1.5; after = 'run'; go('run', 10); } else go('idle', 1); }
         else go('idle', 1.5);
       }
       if (timer <= 0) decide();
@@ -1331,7 +1414,8 @@ pet = (() => {
     }
   }
   go('idle', 1);
-  return { update, tapped, obstaclesChanged, place, get state() { return state; }, go, decideNow: s => { timer = 0; }, get marks() { return marks.length; } };
+  return { update, tapped, obstaclesChanged, place, get state() { return state; }, go, decideNow: s => { timer = 0; }, get marks() { return marks.length; },
+    get potty() { return { inSec: potty.due === null ? null : Math.round(potty.due - time), next: potty.next }; }, pottyNow() { potty.due = time; } };
 })();
 pet.obstaclesChanged();
 
