@@ -622,7 +622,7 @@ const dog = (() => {
     CY(0.022, 0.02, 0.12, fur, 0, -0.12, 0, pv, 7); add(new THREE.Mesh(fluff(0.024, 0.1, 0), furLight), 0, -0.118, 0.01, pv);
     return pv;
   });
-  const it = item('dog', '博美', g, 300, 380, 0, 'pet', true);
+  const it = item('dog', '博美', g, 300, 380, 0, 'pet'); // 官方擺法：一開始就在棚裡
   return { it, g, rig, headPivot, tailPivot, legs, eyes, body };
 })();
 
